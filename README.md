@@ -1,97 +1,93 @@
-# HardSub Converter Pro
+🎬 HardSub Converter Pro
 
-Aplicação desktop em Python para **converter vídeos com legendas embutidas (hardcoded)**, texto/watermark customizável e controle avançado de qualidade, utilizando **FFmpeg** com suporte opcional a **aceleração NVIDIA NVENC**.
+HardSub Converter Pro é uma aplicação desktop poderosa e intuitiva para conversão de vídeos com legendas embutidas (hardcoded). O software combina a flexibilidade do FFmpeg com uma interface moderna, oferecendo controle total sobre qualidade, trilhas de áudio e marcas d'água.
+✨ Funcionalidades
 
----
+    📝 Legendas Hardcoded: Suporte nativo para formatos .srt, .ass e .ssa.
 
-## ✨ Funcionalidades
+    🏷️ Branding Personalizado: Adicione textos ou marcas d'água com controle total de posição e tamanho.
 
-- 🎬 Conversão de vídeos com FFmpeg
-- 📝 Embutir legendas externas (`.srt`, `.ass`, `.ssa`)
-- 🏷️ Adicionar texto/watermark com posição e tamanho configuráveis
-- 🎧 Seleção de faixa de áudio (quando o vídeo possui múltiplas)
-- 🎚️ Presets de qualidade (padrões + personalizados)
-- ⚙️ Editor de presets com bitrate e preset NVENC
-- 🚀 Aceleração por hardware NVIDIA (NVENC), com fallback automático para CPU
-- 💾 Preservação opcional de metadados
-- 📊 Barra de progresso e log detalhado
-- 🖱️ Interface moderna com Drag & Drop
-- 💻 Compatível com Windows, Linux e macOS*
+    🎧 Gestão de Áudio: Selecione faixas específicas em arquivos multi-áudio.
 
-\* A aceleração por hardware é aplicada automaticamente apenas em GPUs NVIDIA.
+    🚀 Alta Performance: Suporte a aceleração por hardware NVIDIA NVENC com fallback inteligente para CPU.
 
----
+    🎚️ Presets Flexíveis: Editor de presets integrado (bitrate, presets NVENC) e salvamento automático em config.json.
 
-## 🧠 Como funciona a aceleração por hardware
+    🖱️ Experiência Moderna: Interface limpa com suporte a Drag & Drop e barra de progresso em tempo real.
 
-- Se uma **GPU NVIDIA** for detectada, o app pode usar **NVENC**
-- Caso contrário, a conversão é feita automaticamente via **CPU (libx264)**
-- Não é necessária nenhuma configuração manual do usuário
+    💻 Multiplataforma: Compatível com Windows, Linux e macOS.
 
----
+🧠 Inteligência de Processamento
 
-## 📦 Requisitos
+O HardSub Converter Pro foi desenhado para ser eficiente sem exigir esforço do usuário:
 
-- Python **3.9+**
-- FFmpeg instalado **ou** permitido o download automático (Windows)
-- Bibliotecas Python:
-  - PySide6
+    Detecção Automática: O sistema verifica a presença de drivers NVIDIA.
 
----
+    Codificação: * Com GPU NVIDIA: Utiliza o encoder h264_nvenc para velocidade máxima.
 
-## ▶️ Executando o projeto
+        Sem GPU/Outros: Utiliza o encoder libx264 (CPU) garantindo compatibilidade universal.
 
-```bash
+    Metadados: Opção para preservar informações originais do arquivo.
+
+📦 Requisitos & Instalação
+Pré-requisitos
+
+    Python: Versão 3.9 ou superior.
+
+    FFmpeg: Deve estar no PATH do sistema (No Windows, o app oferece download automático).
+
+Instalação
+
+    Clone o repositório:
+    Bash
+
+git clone https://github.com/seu-usuario/hardsub-converter-pro.git
+cd hardsub-converter-pro
+
+Instale as dependências:
+Bash
+
 pip install PySide6
-python conversor2.py
-```
 
-No Windows, o aplicativo pode baixar o FFmpeg automaticamente se não estiver instalado.
+Inicie a aplicação:
+Bash
 
-🗂️ Formatos suportados
-Vídeo
+    python conversor2.py
 
-.mp4, .mkv, .avi, .mov, .wmv, .flv
-
-Legendas
-
-.srt, .ass, .ssa
-
-⚙️ Presets de Qualidade
-
-O aplicativo inclui:
-
-Presets fixos (Alta / Padrão)
-
-Presets personalizados criados pelo usuário
-
-Modo manual para configuração livre de bitrate
-
-Os presets são salvos localmente em config.json.
-
-📁 Arquivos gerados
-
-O vídeo convertido é salvo na mesma pasta do original
-
-Nome padrão:
-
-nome_do_video@converted.mp4
-
+🛠️ Especificações Técnicas
+Categoria	Suportados
+Formatos de Vídeo	.mp4, .mkv, .avi, .mov, .wmv, .flv
+Formatos de Legenda	.srt, .ass, .ssa
+Presets	Alta, Padrão, Personalizado e Manual
+Saída	nome_do_arquivo@converted.mp4
 🧪 Status do Projeto
 
-Estável para uso diário
+    [x] Interface Base (PySide6)
 
-Focado em simplicidade, estabilidade e compatibilidade
+    [x] Integração FFmpeg
 
-Suporte a AMD/VAAPI não implementado (CPU é usado automaticamente)
+    [x] Suporte NVIDIA NVENC
+
+    [ ] Suporte AMD (AMF/VAAPI) - Em planejamento
+
+    [ ] Conversão em lote (Batch processing) - Em planejamento
 
 🤝 Contribuições
 
-Contribuições são bem-vindas!
-Veja o arquivo CONTRIBUTING.md
- para mais detalhes.
+Contribuições tornam a comunidade open-source um lugar incrível para aprender e criar.
+
+    Faça um Fork do projeto.
+
+    Crie uma Branch para sua feature (git checkout -b feature/NovaFeature).
+
+    Dê um Commit nas suas alterações (git commit -m 'Add: Nova Feature').
+
+    Faça um Push para a Branch (git push origin feature/NovaFeature).
+
+    Abra um Pull Request.
 
 📄 Licença
 
-Este projeto é distribuído sob a licença MIT.
-Sinta-se livre para usar, modificar e distribuir.
+Distribuído sob a licença MIT. Veja LICENSE para mais informações.
+
+    Nota: A aceleração por hardware (NVENC) requer drivers atualizados da NVIDIA instalados no sistema host.
