@@ -47,7 +47,7 @@ O projeto é focado em **simplicidade para o usuário final**, mas com **robuste
 
 ### 1️⃣ Clonar o repositório
 ```bash
-git clone https://github.com/seu-usuario/hardsubforge.git
+git clone https://github.com/atanycost-png/hardsubforge.git
 cd hardsubforge
 ```
 
