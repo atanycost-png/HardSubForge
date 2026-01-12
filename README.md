@@ -51,7 +51,7 @@ Para rodar o projeto localmente, siga os passos abaixo:
 pip install PySide6
 
 # Execute a aplicação
-python conversor2.py
+python HardSubForge.py
 
 ```
 
