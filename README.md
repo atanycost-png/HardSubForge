@@ -1,88 +1,97 @@
-# HardSubForge 🎬🔥
+# HardSub Converter Pro
 
-**HardSubForge** é um conversor de vídeos open source em Python que permite **queimar legendas (hard subtitles)** e **aplicar textos/watermarks diretamente no vídeo**, utilizando o poder do **FFmpeg**, com interface gráfica moderna feita em **PySide6**.
-
-O projeto é focado em **simplicidade para o usuário final**, mas com **robustez técnica**, suporte a **aceleração por GPU NVIDIA (NVENC)** e funcionamento multiplataforma.
+Aplicação desktop em Python para **converter vídeos com legendas embutidas (hardcoded)**, texto/watermark customizável e controle avançado de qualidade, utilizando **FFmpeg** com suporte opcional a **aceleração NVIDIA NVENC**.
 
 ---
 
 ## ✨ Funcionalidades
 
-- 🎥 Conversão de vídeos com **hard subtitles** (SRT / ASS / SSA)
-- 📝 Inserção de **texto/watermark** no vídeo (topo, centro ou rodapé)
-- 🎚️ Presets de qualidade (Alta, Padrão, Baixa)
-- ⚡ Aceleração por hardware **NVIDIA CUDA / NVENC**
-- 📂 Drag & Drop de vídeos
-- 🔍 Detecção automática de legendas com mesmo nome do vídeo
+- 🎬 Conversão de vídeos com FFmpeg
+- 📝 Embutir legendas externas (`.srt`, `.ass`, `.ssa`)
+- 🏷️ Adicionar texto/watermark com posição e tamanho configuráveis
+- 🎧 Seleção de faixa de áudio (quando o vídeo possui múltiplas)
+- 🎚️ Presets de qualidade (padrões + personalizados)
+- ⚙️ Editor de presets com bitrate e preset NVENC
+- 🚀 Aceleração por hardware NVIDIA (NVENC), com fallback automático para CPU
 - 💾 Preservação opcional de metadados
-- 📊 Barra de progresso real baseada no tempo do vídeo
-- ❌ Cancelamento seguro da conversão
-- 🧠 Salvamento automático das configurações do usuário
-- 🖥️ Interface moderna com tema escuro
-- 📦 Download automático do FFmpeg (Windows)
+- 📊 Barra de progresso e log detalhado
+- 🖱️ Interface moderna com Drag & Drop
+- 💻 Compatível com Windows, Linux e macOS*
+
+\* A aceleração por hardware é aplicada automaticamente apenas em GPUs NVIDIA.
 
 ---
 
-## 🛠️ Tecnologias Utilizadas
+## 🧠 Como funciona a aceleração por hardware
 
-- **Python 3.9+**
-- **PySide6 (Qt for Python)**
-- **FFmpeg**
-- **NVENC (opcional – NVIDIA GPU)**
-
----
-
-## 📋 Requisitos
-
-### Obrigatórios
-- Python **3.9 ou superior**
-- FFmpeg instalado **(ou download automático no Windows)**
-
-### Opcionais
-- GPU **NVIDIA** com drivers atualizados (para aceleração por hardware)
+- Se uma **GPU NVIDIA** for detectada, o app pode usar **NVENC**
+- Caso contrário, a conversão é feita automaticamente via **CPU (libx264)**
+- Não é necessária nenhuma configuração manual do usuário
 
 ---
 
-## 🚀 Como executar o projeto
+## 📦 Requisitos
 
-### 1️⃣ Clonar o repositório
+- Python **3.9+**
+- FFmpeg instalado **ou** permitido o download automático (Windows)
+- Bibliotecas Python:
+  - PySide6
+
+---
+
+## ▶️ Executando o projeto
+
 ```bash
-git clone https://github.com/atanycost-png/hardsubforge.git
-cd hardsubforge
+pip install PySide6
+python conversor2.py
 ```
 
-### 2️⃣ Criar ambiente virtual (opcional, recomendado)
-```bash
-python -m venv venv
-source venv/bin/activate  # Linux / macOS
-venv\Scripts\activate     # Windows
-```
+No Windows, o aplicativo pode baixar o FFmpeg automaticamente se não estiver instalado.
 
-### 3️⃣ Instalar dependências
-```bash
-pip install -r requirements.txt
-```
+🗂️ Formatos suportados
+Vídeo
 
-### 4️⃣ Executar a aplicação
-```bash
-python conversor_atanycost.py
-```
+.mp4, .mkv, .avi, .mov, .wmv, .flv
 
-📦 FFmpeg
+Legendas
 
-No Windows, o programa oferece download automático do FFmpeg.
-No Linux / macOS, instale manualmente:
-Ubuntu / Debian
-```bash
-sudo apt install ffmpeg
-```
-macOS (Homebrew)
-```bash
-brew install ffmpeg
-```
-Verifique:
-```bash
-ffmpeg -version
-```
+.srt, .ass, .ssa
 
+⚙️ Presets de Qualidade
 
+O aplicativo inclui:
+
+Presets fixos (Alta / Padrão)
+
+Presets personalizados criados pelo usuário
+
+Modo manual para configuração livre de bitrate
+
+Os presets são salvos localmente em config.json.
+
+📁 Arquivos gerados
+
+O vídeo convertido é salvo na mesma pasta do original
+
+Nome padrão:
+
+nome_do_video@converted.mp4
+
+🧪 Status do Projeto
+
+Estável para uso diário
+
+Focado em simplicidade, estabilidade e compatibilidade
+
+Suporte a AMD/VAAPI não implementado (CPU é usado automaticamente)
+
+🤝 Contribuições
+
+Contribuições são bem-vindas!
+Veja o arquivo CONTRIBUTING.md
+ para mais detalhes.
+
+📄 Licença
+
+Este projeto é distribuído sob a licença MIT.
+Sinta-se livre para usar, modificar e distribuir.
