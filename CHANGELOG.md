@@ -2,45 +2,43 @@
 
 Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 
-O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/)  
-e este projeto segue [Versionamento Semântico](https://semver.org/lang/pt-BR/).
+O formato segue o padrão [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/)  
+e o projeto utiliza [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
 ---
 
-## [2.0.0] - 2026-01-12
+## [2.2.0] - 2026-01-12
+
+### Added
+- Seleção manual de faixa de áudio em vídeos com múltiplos áudios
+- Detecção automática de faixas de áudio via ffprobe
+- Editor de presets de qualidade personalizados
+- Presets salvos localmente pelo usuário
+- Suporte a texto/watermark configurável (posição e tamanho)
+- Preservação opcional de metadados do vídeo
+- Barra de progresso baseada na duração real do vídeo
+- Log detalhado do processo de conversão
+- Download automático do FFmpeg no Windows
+
+### Changed
+- Pipeline de conversão reorganizado para maior estabilidade
+- Sistema de qualidade agora suporta presets fixos e personalizados
+- Interface aprimorada para melhor usabilidade
+- Comportamento padrão ajustado para maior compatibilidade
+
+### Fixed
+- Travamentos da interface durante a conversão
+- Problemas ao lidar com caminhos de arquivos no Windows
+- Erros ao aplicar texto com caracteres especiais
+- Falhas ao converter vídeos com múltiplas faixas de áudio
+- Melhor tratamento de erros do FFmpeg
+
+---
+
+## [2.1.0] - 2025-12-20
 
 ### Added
 - Interface gráfica moderna baseada em PySide6
 - Suporte a hard subtitles (SRT, ASS, SSA)
-- Inserção de texto/watermark no vídeo (topo, centro e rodapé)
-- Presets de qualidade (Alta, Padrão, Baixa)
-- Aceleração por hardware NVIDIA (CUDA / NVENC)
-- Detecção automática de GPU NVIDIA
-- Download automático do FFmpeg no Windows
-- Barra de progresso baseada na duração real do vídeo
-- Cancelamento seguro da conversão
-- Drag & Drop de arquivos de vídeo
-- Salvamento automático das configurações do usuário
-- Preservação opcional de metadados
-- Log detalhado do processo de conversão
-
-### Changed
-- Reestruturação completa do projeto
-- Pipeline de conversão baseado em FFmpeg com thread dedicada
-- Melhor tratamento de paths e escaping para filtros FFmpeg
-- Melhor UX e feedback visual durante a conversão
-
-### Fixed
-- Possíveis travamentos da interface durante conversão
-- Problemas com caminhos de arquivos no Windows
-- Erros ao aplicar texto com caracteres especiais
-- Melhor compatibilidade entre Windows, Linux e macOS
-
----
-
-## [1.0.0] - 2025-xx-xx
-
-### Added
-- Primeira versão funcional do conversor
-- Conversão básica de vídeos via FFmpeg
-- Interface gráfica inicial
+- Drag & Drop para seleção de arquivos
+- Presets de
