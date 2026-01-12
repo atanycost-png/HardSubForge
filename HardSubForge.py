@@ -1,0 +1,905 @@
+import sys
+import os
+import json
+import platform
+import re
+import shutil
+import subprocess
+import threading
+import urllib.request
+from pathlib import Path
+from typing import Optional, List, Dict
+
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+                               QHBoxLayout, QLabel, QPushButton, QLineEdit,
+                               QComboBox, QTextEdit, QFileDialog, 
+                               QProgressBar, QMessageBox, QCheckBox, QSpinBox, 
+                               QFrame, QDialog, QFormLayout, QDialogButtonBox)
+from PySide6.QtCore import Qt, QThread, Signal, QUrl
+from PySide6.QtGui import QFont, QColor, QPalette, QDesktopServices
+
+# --- CONFIGURAÇÕES E UTILITÁRIOS ---
+
+CONFIG_FILE = "config.json"
+APP_VERSION = "2.2.0"
+
+class ConfigManager:
+    """Gerencia o salvamento e carregamento de configurações."""
+    def __init__(self):
+        self.config_path = Path(CONFIG_FILE)
+        self.data = {
+            "last_video_dir": "",
+            "last_quality": "Alta (4200k)",
+            "last_text": "",
+            "ffmpeg_path": "",
+            "use_hardware_accel": True,
+            "text_position": "top",
+            "text_size": 22,
+            "preserve_metadata": True,
+            "custom_bitrate": "",
+            "custom_preset": "p6",
+            "custom_presets": [] # Lista para guardar presets do usuário
+        }
+        self.load()
+
+    def load(self):
+        if self.config_path.exists():
+            try:
+                with open(self.config_path, 'r', encoding='utf-8') as f:
+                    loaded = json.load(f)
+                    self.data.update(loaded)
+            except Exception as e:
+                print(f"Erro ao carregar config: {e}")
+
+    def save(self):
+        try:
+            with open(self.config_path, 'w', encoding='utf-8') as f:
+                json.dump(self.data, f, indent=4, ensure_ascii=False)
+        except Exception as e:
+            print(f"Erro ao salvar config: {e}")
+
+def get_font_path() -> Optional[str]:
+    """Retorna o caminho para uma fonte compatível (Arial ou fallback)."""
+    system = platform.system()
+    paths = []
+    
+    if system == "Windows":
+        paths = [
+            Path("C:/Windows/Fonts/arial.ttf"),
+            Path("C:/Windows/Fonts/segoeui.ttf"),
+            Path("C:/Windows/Fonts/calibri.ttf")
+        ]
+    elif system == "Darwin":  # macOS
+        paths = [
+            Path("/Library/Fonts/Arial.ttf"),
+            Path("/System/Library/Fonts/Helvetica.ttc"),
+            Path("/System/Library/Fonts/Supplemental/Arial.ttf")
+        ]
+    elif system == "Linux":
+        paths = [
+            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+            Path("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"),
+            Path("/usr/share/fonts/TTF/DejaVuSans.ttf")
+        ]
+    
+    for p in paths:
+        if p.exists():
+            return str(p).replace("\\", "/")
+    return None
+
+def escape_filter_text(text: str) -> str:
+    """Escapa caracteres especiais para o filtro do FFmpeg."""
+    text = text.replace("\\", "\\\\\\\\")
+    text = text.replace(":", "\\:")
+    text = text.replace("'", "\\'")
+    text = text.replace("\n", " ")
+    text = text.replace("%", "\\%")
+    return text
+
+def escape_path_for_filter(path: str) -> str:
+    path = path.replace("\\", "/")
+    path = path.replace(":", "\\:")
+    path = path.replace("'", "\\'")
+    return path
+
+def get_ffmpeg_binary() -> Optional[str]:
+    script_dir = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
+    
+    if platform.system() == "Windows":
+        local_bin = script_dir / "ffmpeg.exe"
+    else:
+        local_bin = script_dir / "ffmpeg"
+    
+    if local_bin.exists():
+        return str(local_bin)
+    
+    system_bin = shutil.which("ffmpeg")
+    if system_bin:
+        return system_bin
+    
+    return None
+
+def check_nvidia_gpu() -> bool:
+    try:
+        creationflags = subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
+        result = subprocess.run(
+            ["nvidia-smi"], 
+            capture_output=True, 
+            timeout=3,
+            creationflags=creationflags
+        )
+        return result.returncode == 0
+    except:
+        return False
+
+# --- THREADS ---
+
+class FFmpegWorker(QThread):
+    progress_signal = Signal(int)
+    log_signal = Signal(str)
+    finished_signal = Signal(int, str)
+    
+    def __init__(self, cmd: List[str], output_path: str):
+        super().__init__()
+        self.cmd = cmd
+        self.output_path = output_path
+        self.process = None
+        self._is_cancelled = False
+
+    def run(self):
+        try:
+            time_pattern = re.compile(r"time=(\d{2}):(\d{2}):(\d{2}\.\d{2})")
+            duration_pattern = re.compile(r"Duration: (\d{2}):(\d{2}):(\d{2}\.\d{2})")
+            
+            total_duration = 0
+            creation_flags = 0
+            
+            if platform.system() == "Windows":
+                creation_flags = subprocess.CREATE_NO_WINDOW
+
+            self.process = subprocess.Popen(
+                self.cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, 
+                text=True, encoding='utf-8', errors='replace', creationflags=creation_flags
+            )
+
+            for line in self.process.stdout:
+                if self._is_cancelled: break
+                self.log_signal.emit(line.strip())
+                
+                if total_duration == 0:
+                    d_match = duration_pattern.search(line)
+                    if d_match:
+                        h, m, s = map(float, d_match.groups())
+                        total_duration = h * 3600 + m * 60 + s
+
+                if total_duration > 0:
+                    t_match = time_pattern.search(line)
+                    if t_match:
+                        h, m, s = map(float, t_match.groups())
+                        current_time = h * 3600 + m * 60 + s
+                        percent = min(int((current_time / total_duration) * 100), 99)
+                        self.progress_signal.emit(percent)
+
+            self.process.wait()
+            if self._is_cancelled: self.finished_signal.emit(-2, "")
+            else:
+                self.progress_signal.emit(100)
+                self.finished_signal.emit(self.process.returncode, self.output_path)
+        except Exception as e:
+            self.log_signal.emit(f"ERRO CRÍTICO: {str(e)}")
+            self.finished_signal.emit(-1, "")
+
+    def stop(self):
+        self._is_cancelled = True
+        if self.process:
+            self.process.terminate()
+            try: self.process.wait(timeout=5)
+            except: self.process.kill()
+
+class ProbeWorker(QThread):
+    finished_signal = Signal(list)
+
+    def __init__(self, ffmpeg_bin_path: str, video_path: str):
+        super().__init__()
+        self.ffprobe_bin = ffmpeg_bin_path.replace("ffmpeg", "ffprobe")
+        if not Path(self.ffprobe_bin).exists():
+            self.ffprobe_bin = shutil.which("ffprobe")
+        self.video_path = video_path
+
+    def run(self):
+        audio_streams = []
+        if not self.ffprobe_bin or not Path(self.video_path).exists():
+            self.finished_signal.emit(audio_streams)
+            return
+        try:
+            cmd = [self.ffprobe_bin, "-v", "quiet", "-print_format", "json", "-show_streams", self.video_path]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode == 0:
+                data = json.loads(result.stdout)
+                for stream in data.get('streams', []):
+                    if stream.get('codec_type') == 'audio':
+                        index = stream.get('index')
+                        codec = stream.get('codec_name', 'unk').upper()
+                        tags = stream.get('tags', {})
+                        lang = tags.get('language', tags.get('title', 'Desconhecido'))
+                        audio_streams.append({'index': index, 'title': f"Track {index}: {lang} ({codec})"})
+        except Exception as e:
+            print(f"Erro no probe: {e}")
+        self.finished_signal.emit(audio_streams)
+
+# --- DIALOGO DE NOVO PRESET ---
+
+class AddPresetDialog(QDialog):
+    """Janela para adicionar um novo preset de qualidade."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Novo Preset de Qualidade")
+        self.setFixedSize(350, 250)
+        self.setup_ui()
+
+    def setup_ui(self):
+        layout = QFormLayout(self)
+        
+        self.input_name = QLineEdit()
+        self.input_name.setPlaceholderText("Ex: YouTube 1080p")
+        layout.addRow("Nome do Preset:", self.input_name)
+        
+        self.input_bitrate = QLineEdit()
+        self.input_bitrate.setPlaceholderText("Ex: 5000k")
+        layout.addRow("Bitrate (-b:v):", self.input_bitrate)
+        
+        self.input_maxrate = QLineEdit()
+        self.input_maxrate.setPlaceholderText("Ex: 5200k")
+        layout.addRow("Maxrate:", self.input_maxrate)
+        
+        self.input_bufsize = QLineEdit()
+        self.input_bufsize.setPlaceholderText("Ex: 9000k")
+        layout.addRow("Bufsize:", self.input_bufsize)
+        
+        self.combo_preset = QComboBox()
+        self.combo_preset.addItems(["p1 (Mais Rápido)", "p4 (Equilibrado)", "p6 (Lento/Melhor)"])
+        layout.addRow("Preset NVENC:", self.combo_preset)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.validate_and_accept)
+        buttons.rejected.connect(self.reject)
+        layout.addRow(buttons)
+
+    def validate_and_accept(self):
+        if not self.input_name.text() or not self.input_bitrate.text():
+            QMessageBox.warning(self, "Atenção", "Preencha pelo menos o Nome e o Bitrate.")
+            return
+        
+        # Extrai apenas o código do preset (p1, p4, etc)
+        preset_code = self.combo_preset.currentText().split()[0]
+        
+        self.preset_data = {
+            "name": self.input_name.text(),
+            "bitrate": self.input_bitrate.text(),
+            "maxrate": self.input_maxrate.text(),
+            "bufsize": self.input_bufsize.text(),
+            "preset": preset_code
+        }
+        self.accept()
+
+    def get_preset_data(self):
+        return getattr(self, 'preset_data', None)
+
+# --- WIDGETS ---
+
+class DropArea(QLabel):
+    file_dropped = Signal(str)
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.parent_window = parent
+        self.setAlignment(Qt.AlignCenter)
+        self.setText("Arraste o arquivo de vídeo aqui\nou clique para selecionar")
+        self.setStyleSheet("""
+            QLabel { background-color: #2B2B2B; border: 2px dashed #555; border-radius: 10px; color: #AAA; padding: 30px; min-height: 100px; }
+            QLabel:hover { border-color: #4A90E2; color: #FFF; background-color: #333; }
+        """)
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            urls = event.mimeData().urls()
+            if urls and urls[0].toLocalFile().lower().endswith(('.mkv', '.mp4', '.avi', '.mov', '.wmv', '.flv')):
+                event.accept()
+                self.setStyleSheet(self.styleSheet().replace("#555", "#4A90E2"))
+                return
+        event.ignore()
+
+    def dragLeaveEvent(self, event):
+        self.setStyleSheet(self.styleSheet().replace("#4A90E2", "#555"))
+
+    def dropEvent(self, event):
+        self.setStyleSheet(self.styleSheet().replace("#4A90E2", "#555"))
+        files = [u.toLocalFile() for u in event.mimeData().urls()]
+        if files: self.file_dropped.emit(files[0])
+
+    def mousePressEvent(self, event):
+        if self.parent_window and hasattr(self.parent_window, 'select_video'):
+            self.parent_window.select_video()
+
+class ModernButton(QPushButton):
+    def __init__(self, text, color="#4A90E2", hover="#357ABD"):
+        super().__init__(text)
+        self.setStyleSheet(f"""
+            QPushButton {{ background-color: {color}; color: white; border-radius: 8px; padding: 10px; font-weight: bold; font-size: 14px; border: none; }}
+            QPushButton:hover {{ background-color: {hover}; }}
+            QPushButton:disabled {{ background-color: #444; color: #888; }}
+        """)
+        self.setCursor(Qt.PointingHandCursor)
+
+class VideoConverterApp(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle(f"HardSub Converter Pro v{APP_VERSION}")
+        self.resize(700, 880)
+        self.apply_dark_theme()
+        
+        self.config = ConfigManager()
+        self.video_path = ""
+        self.subtitle_path = ""
+        self.worker = None
+        self.has_nvidia = check_nvidia_gpu()
+        self.ffmpeg_bin = get_ffmpeg_binary()
+        
+        self.setup_ui()
+        self.load_settings()
+        if not self.ffmpeg_bin:
+            self.show_ffmpeg_warning()
+
+    def apply_dark_theme(self):
+        app = QApplication.instance()
+        app.setStyle("Fusion")
+        palette = QPalette()
+        palette.setColor(QPalette.Window, QColor("#1E1E1E"))
+        palette.setColor(QPalette.WindowText, Qt.white)
+        palette.setColor(QPalette.Base, QColor("#252525"))
+        palette.setColor(QPalette.AlternateBase, QColor("#1E1E1E"))
+        palette.setColor(QPalette.Text, Qt.white)
+        palette.setColor(QPalette.Button, QColor("#333333"))
+        palette.setColor(QPalette.ButtonText, Qt.white)
+        palette.setColor(QPalette.Highlight, QColor("#4A90E2"))
+        app.setPalette(palette)
+
+    def setup_ui(self):
+        central = QWidget()
+        self.setCentralWidget(central)
+        layout = QVBoxLayout(central)
+        layout.setSpacing(15)
+        layout.setContentsMargins(25, 25, 25, 25)
+
+        # Header
+        title = QLabel("HardSub Converter Pro")
+        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #4A90E2;")
+        title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
+        
+        # Status
+        status_layout = QHBoxLayout()
+        self.lbl_ffmpeg_status = QLabel("FFmpeg: Verificando...")
+        self.lbl_ffmpeg_status.setStyleSheet("color: gray; font-size: 11px;")
+        status_layout.addWidget(self.lbl_ffmpeg_status)
+        
+        gpu_text = "GPU: NVIDIA Detectada" if self.has_nvidia else "GPU: Não detectada"
+        self.lbl_gpu_status = QLabel(gpu_text)
+        self.lbl_gpu_status.setStyleSheet(f"color: {'#4CAF50' if self.has_nvidia else '#FFA726'}; font-size: 11px;")
+        status_layout.addWidget(self.lbl_gpu_status)
+        status_layout.addStretch()
+        layout.addLayout(status_layout)
+        self.update_ffmpeg_status_ui()
+
+        # Drag & Drop
+        self.drop_area = DropArea(self)
+        self.drop_area.file_dropped.connect(self.handle_file_drop)
+        layout.addWidget(self.drop_area)
+
+        # Legenda
+        subtitle_layout = QHBoxLayout()
+        self.lbl_sub = QLabel("Legenda: Nenhuma detectada")
+        self.lbl_sub.setStyleSheet("color: #AAA;")
+        subtitle_layout.addWidget(self.lbl_sub)
+        
+        btn_sub = QPushButton("Alterar Legenda")
+        btn_sub.setStyleSheet("background-color: transparent; border: 1px solid #555; color: #CCC; padding: 5px;")
+        btn_sub.clicked.connect(self.select_subtitle)
+        subtitle_layout.addWidget(btn_sub)
+        
+        btn_clear_sub = QPushButton("Remover")
+        btn_clear_sub.setStyleSheet("background-color: transparent; border: 1px solid #555; color: #CCC; padding: 5px;")
+        btn_clear_sub.clicked.connect(self.clear_subtitle)
+        subtitle_layout.addWidget(btn_clear_sub)
+        layout.addLayout(subtitle_layout)
+
+        # Áudio
+        audio_layout = QHBoxLayout()
+        self.lbl_audio = QLabel("Áudio:")
+        self.lbl_audio.setStyleSheet("color: #AAA;")
+        audio_layout.addWidget(self.lbl_audio)
+        self.combo_audio = QComboBox()
+        self.combo_audio.setStyleSheet("background-color: #2B2B2B; color: white; padding: 5px;")
+        self.combo_audio.addItem("Padrão (Todas as faixas)")
+        self.combo_audio.setEnabled(False)
+        audio_layout.addWidget(self.combo_audio)
+        layout.addLayout(audio_layout)
+
+        # Texto
+        layout.addWidget(QLabel("Texto Superior (Watermark):"))
+        text_layout = QHBoxLayout()
+        self.entry_text = QLineEdit()
+        self.entry_text.setPlaceholderText("Digite o texto aqui...")
+        self.entry_text.setStyleSheet("background-color: #2B2B2B; color: white; padding: 8px; border-radius: 6px;")
+        text_layout.addWidget(self.entry_text)
+        
+        self.spin_text_size = QSpinBox()
+        self.spin_text_size.setRange(10, 72)
+        self.spin_text_size.setValue(22)
+        self.spin_text_size.setPrefix("Tamanho: ")
+        self.spin_text_size.setStyleSheet("background-color: #2B2B2B; color: white; padding: 5px;")
+        text_layout.addWidget(self.spin_text_size)
+        layout.addLayout(text_layout)
+        
+        pos_layout = QHBoxLayout()
+        pos_layout.addWidget(QLabel("Posição:"))
+        self.combo_text_pos = QComboBox()
+        self.combo_text_pos.addItems(["Topo", "Centro", "Rodapé"])
+        self.combo_text_pos.setCurrentText("Topo")
+        self.combo_text_pos.setStyleSheet("background-color: #2B2B2B; color: white; padding: 5px;")
+        pos_layout.addWidget(self.combo_text_pos)
+        pos_layout.addStretch()
+        layout.addLayout(pos_layout)
+
+        # --- QUALIDADE COM PRESETS ---
+        quality_layout = QHBoxLayout()
+        quality_layout.addWidget(QLabel("Qualidade:"))
+        self.combo_quality = QComboBox()
+        self.combo_quality.setStyleSheet("background-color: #2B2B2B; color: white; padding: 8px;")
+        self.combo_quality.currentIndexChanged.connect(self.on_quality_changed)
+        quality_layout.addWidget(self.combo_quality)
+        
+        btn_add_preset = QPushButton("+")
+        btn_add_preset.setFixedSize(30, 30)
+        btn_add_preset.setToolTip("Criar novo Preset")
+        btn_add_preset.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold; border-radius: 5px; border: none;")
+        btn_add_preset.clicked.connect(self.open_add_preset_dialog)
+        quality_layout.addWidget(btn_add_preset)
+        
+        layout.addLayout(quality_layout)
+        
+        # Frame Custom
+        self.frame_custom_quality = QFrame()
+        self.frame_custom_quality.setFrameShape(QFrame.StyledPanel)
+        self.frame_custom_quality.setStyleSheet("background-color: #2A2A2A; border-radius: 5px; padding: 5px;")
+        self.frame_custom_quality.setVisible(False)
+        
+        cq_layout = QHBoxLayout(self.frame_custom_quality)
+        cq_layout.addWidget(QLabel("Bitrate:"))
+        self.entry_custom_bitrate = QLineEdit()
+        self.entry_custom_bitrate.setPlaceholderText("ex: 5000k")
+        self.entry_custom_bitrate.setStyleSheet("background-color: #333; color: white; padding: 5px;")
+        cq_layout.addWidget(self.entry_custom_bitrate)
+        
+        cq_layout.addWidget(QLabel("Preset:"))
+        self.combo_preset = QComboBox()
+        self.combo_preset.addItems(["p1 (Mais Rápido)", "p4 (Equilibrado)", "p6 (Lento/Melhor)"])
+        self.combo_preset.setStyleSheet("background-color: #333; color: white; padding: 5px;")
+        cq_layout.addWidget(self.combo_preset)
+        
+        layout.addWidget(self.frame_custom_quality)
+
+        # Checkboxes
+        self.chk_hw_accel = QCheckBox("Usar aceleração por hardware (NVIDIA)")
+        self.chk_hw_accel.setChecked(self.has_nvidia)
+        self.chk_hw_accel.setEnabled(self.has_nvidia)
+        self.chk_hw_accel.setStyleSheet("color: #CCC;")
+        layout.addWidget(self.chk_hw_accel)
+        
+        self.chk_metadata = QCheckBox("Preservar metadados do vídeo original")
+        self.chk_metadata.setChecked(True)
+        self.chk_metadata.setStyleSheet("color: #CCC;")
+        layout.addWidget(self.chk_metadata)
+
+        # Progresso
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setStyleSheet("QProgressBar { border: 1px solid #444; border-radius: 5px; text-align: center; color: white; height: 25px; } QProgressBar::chunk { background-color: #4A90E2; }")
+        layout.addWidget(self.progress_bar)
+
+        # Botões
+        btn_layout = QHBoxLayout()
+        self.btn_convert = ModernButton("INICIAR CONVERSÃO", "#4CAF50", "#45A049")
+        self.btn_convert.clicked.connect(self.start_conversion)
+        self.btn_convert.setFixedHeight(45)
+        btn_layout.addWidget(self.btn_convert)
+        
+        self.btn_cancel = ModernButton("CANCELAR", "#D32F2F", "#B71C1C")
+        self.btn_cancel.clicked.connect(self.cancel_conversion)
+        self.btn_cancel.setFixedHeight(45)
+        self.btn_cancel.setEnabled(False)
+        btn_layout.addWidget(self.btn_cancel)
+        layout.addLayout(btn_layout)
+        
+        self.btn_open_folder = QPushButton("Abrir Pasta do Arquivo")
+        self.btn_open_folder.setStyleSheet("background-color: transparent; border: 1px solid #555; color: #CCC; padding: 8px;")
+        self.btn_open_folder.clicked.connect(self.open_output_folder)
+        self.btn_open_folder.setEnabled(False)
+        layout.addWidget(self.btn_open_folder)
+
+        # Log
+        layout.addWidget(QLabel("Log de Conversão:"))
+        self.txt_log = QTextEdit()
+        self.txt_log.setReadOnly(True)
+        self.txt_log.setStyleSheet("background-color: #121212; color: #00FF00; font-family: Consolas, monospace; font-size: 10px;")
+        self.txt_log.setMaximumHeight(200)
+        layout.addWidget(self.txt_log)
+
+    def update_ffmpeg_status_ui(self):
+        if self.ffmpeg_bin:
+            self.lbl_ffmpeg_status.setText(f"FFmpeg: OK ({Path(self.ffmpeg_bin).name})")
+            self.lbl_ffmpeg_status.setStyleSheet("color: #4CAF50; font-size: 11px;")
+        else:
+            self.lbl_ffmpeg_status.setText("FFmpeg: NÃO ENCONTRADO")
+            self.lbl_ffmpeg_status.setStyleSheet("color: #F44336; font-size: 11px; font-weight: bold;")
+
+    # --- LÓGICA DE PRESETS ---
+    def load_presets_to_combo(self):
+        """Carrega os padrões e os presets do usuário no ComboBox."""
+        self.combo_quality.blockSignals(True) # Evita disparar on_changed durante o carregamento
+        self.combo_quality.clear()
+        
+        # Padrões Fixos
+        self.combo_quality.addItem("Alta (4200k)", "high")
+        self.combo_quality.addItem("Padrão (2800k)", "standard")
+        
+        # Presets do Usuário
+        for p in self.config.data.get('custom_presets', []):
+            self.combo_quality.addItem(f"⚙️ {p['name']}", p)
+            
+        self.combo_quality.addItem("Personalizada (Manual)", "manual")
+        
+        # Restaura seleção salva
+        saved_quality = self.config.data.get("last_quality", "Alta (4200k)")
+        index = self.combo_quality.findText(saved_quality)
+        if index >= 0:
+            self.combo_quality.setCurrentIndex(index)
+        else:
+            self.combo_quality.setCurrentIndex(0)
+            
+        self.combo_quality.blockSignals(False)
+        self.toggle_custom_quality_ui()
+
+    def open_add_preset_dialog(self):
+        """Abre a janela para criar um novo preset."""
+        dlg = AddPresetDialog(self)
+        if dlg.exec():
+            new_preset = dlg.get_preset_data()
+            if new_preset:
+                self.config.data['custom_presets'].append(new_preset)
+                self.config.save()
+                self.load_presets_to_combo()
+                
+                # Seleciona o novo preset criado automaticamente
+                name = f"⚙️ {new_preset['name']}"
+                self.combo_quality.setCurrentText(name)
+                QMessageBox.information(self, "Sucesso", f"Preset '{new_preset['name']}' salvo com sucesso!")
+
+    def on_quality_changed(self):
+        """Ao mudar a qualidade, atualiza os campos customizados se for um preset salvo."""
+        mode = self.combo_quality.currentText()
+        data = self.combo_quality.currentData()
+        
+        # Se for um objeto de preset (dicionário), preenche os campos
+        if isinstance(data, dict):
+            self.frame_custom_quality.setVisible(True)
+            self.entry_custom_bitrate.setText(data.get('bitrate', ''))
+            preset_code = data.get('preset', 'p6')
+            # Encontra o texto que corresponde ao código
+            idx = self.combo_preset.findText(preset_code, Qt.MatchStartsWith)
+            if idx >= 0: self.combo_preset.setCurrentIndex(idx)
+        elif mode == "Personalizada (Manual)":
+            self.frame_custom_quality.setVisible(True)
+        else:
+            # Padrão fixo (Alta ou Padrão)
+            self.frame_custom_quality.setVisible(False)
+
+    # --- RESTO DAS FUNÇÕES ---
+
+    def show_ffmpeg_warning(self):
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Warning)
+        msg.setWindowTitle("FFmpeg Não Encontrado")
+        msg.setText("O FFmpeg é necessário para a conversão de vídeos.")
+        msg.setInformativeText("Você pode baixá-lo automaticamente (apenas Windows) ou selecioná-lo manualmente.")
+        btn_download = msg.addButton("Baixar Automaticamente", QMessageBox.ActionRole)
+        btn_manual = msg.addButton("Selecionar Manualmente", QMessageBox.ActionRole)
+        btn_info = msg.addButton("Mais Informações", QMessageBox.HelpRole)
+        msg.addButton("Cancelar", QMessageBox.RejectRole)
+        msg.exec()
+        if msg.clickedButton() == btn_download:
+            if platform.system() == "Windows": self.download_ffmpeg_windows()
+            else: QMessageBox.information(self, "Info", "Download automático disponível apenas para Windows.\nPor favor, instale o FFmpeg manualmente.")
+        elif msg.clickedButton() == btn_manual: self.select_ffmpeg_manual()
+        elif msg.clickedButton() == btn_info: QDesktopServices.openUrl(QUrl("https://ffmpeg.org/download.html"))
+
+    def download_ffmpeg_windows(self):
+        self.log("Iniciando download do FFmpeg...")
+        url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+        dest_zip = Path("ffmpeg_temp.zip")
+        try:
+            def report_progress(block_num, block_size, total_size):
+                if total_size > 0:
+                    downloaded = block_num * block_size
+                    percent = min(int(downloaded / total_size * 100), 100)
+                    self.progress_bar.setValue(percent)
+                    self.log(f"Baixando FFmpeg... {percent}%")
+            urllib.request.urlretrieve(url, str(dest_zip), reporthook=report_progress)
+            self.log("Download concluído. Extraindo arquivos...")
+            import zipfile
+            with zipfile.ZipFile(dest_zip, 'r') as zip_ref:
+                for file in zip_ref.namelist():
+                    if file.endswith("ffmpeg.exe") or file.endswith("ffprobe.exe"):
+                        with zip_ref.open(file) as source: Path(file).write_bytes(source.read())
+            dest_zip.unlink()
+            self.log("FFmpeg instalado com sucesso!")
+            self.ffmpeg_bin = get_ffmpeg_binary()
+            self.update_ffmpeg_status_ui()
+            self.progress_bar.setValue(0)
+            QMessageBox.information(self, "Sucesso", "FFmpeg instalado com sucesso!")
+        except Exception as e:
+            self.log(f"Erro no download: {e}")
+            QMessageBox.critical(self, "Erro", f"Falha ao baixar FFmpeg:\n{e}\n\nPor favor, baixe manualmente em ffmpeg.org")
+
+    def select_ffmpeg_manual(self):
+        file_filter = "Executáveis (*.exe);;Todos os arquivos (*.*)" if platform.system() == "Windows" else "Todos os arquivos (*.*)"
+        path, _ = QFileDialog.getOpenFileName(self, "Selecione o executável do FFmpeg", "", file_filter)
+        if path and Path(path).exists():
+            self.ffmpeg_bin = path
+            self.config.data["ffmpeg_path"] = path
+            self.config.save()
+            self.update_ffmpeg_status_ui()
+            self.log(f"FFmpeg configurado: {path}")
+
+    def handle_file_drop(self, path: str):
+        if not os.path.exists(path): return QMessageBox.warning(self, "Erro", "Arquivo não encontrado!")
+        self.video_path = path
+        base_name = Path(path).stem
+        
+        # Legenda
+        found_sub = False
+        for ext in ['.srt', '.ass', '.ssa']:
+            possible_sub = Path(path).parent / f"{base_name}{ext}"
+            if possible_sub.exists():
+                self.subtitle_path = str(possible_sub)
+                self.lbl_sub.setText(f"Legenda: {possible_sub.name}")
+                found_sub = True
+                break
+        if not found_sub:
+            self.subtitle_path = ""
+            self.lbl_sub.setText("Legenda: Nenhuma detectada")
+        
+        self.log(f"Vídeo carregado: {Path(path).name}")
+        self.drop_area.setText(f"Vídeo Selecionado:\n{Path(path).name}")
+        self.btn_open_folder.setEnabled(True)
+        
+        self.analyze_audio_tracks()
+
+    def analyze_audio_tracks(self):
+        self.combo_audio.clear()
+        self.combo_audio.addItem("Padrão (Todas as faixas)")
+        self.combo_audio.setEnabled(False)
+        self.lbl_audio.setText("Áudio: Analisando...")
+        self.probe_thread = ProbeWorker(self.ffmpeg_bin, self.video_path)
+        self.probe_thread.finished_signal.connect(self.populate_audio_combo)
+        self.probe_thread.start()
+
+    def populate_audio_combo(self, streams):
+        self.combo_audio.clear()
+        self.combo_audio.addItem("Padrão (Todas as faixas)")
+        if streams:
+            for s in streams: self.combo_audio.addItem(s['title'], s['index'])
+            self.lbl_audio.setText("Áudio:")
+            self.combo_audio.setEnabled(True)
+        else:
+            self.lbl_audio.setText("Áudio: Nenhuma faixa detectada")
+            self.combo_audio.setEnabled(False)
+
+    def select_video(self):
+        start_dir = self.config.data.get("last_video_dir", "")
+        path, _ = QFileDialog.getOpenFileName(self, "Selecione o Vídeo", start_dir, "Vídeos (*.mkv *.mp4 *.avi *.mov *.wmv *.flv);;Todos os arquivos (*.*)")
+        if path:
+            self.handle_file_drop(path)
+            self.config.data["last_video_dir"] = str(Path(path).parent)
+            self.config.save()
+
+    def select_subtitle(self):
+        if not self.video_path: return QMessageBox.warning(self, "Aviso", "Selecione um vídeo primeiro.")
+        path, _ = QFileDialog.getOpenFileName(self, "Selecione a Legenda", str(Path(self.video_path).parent), "Legendas (*.srt *.ass *.ssa);;Todos os arquivos (*.*)")
+        if path:
+            self.subtitle_path = path
+            self.lbl_sub.setText(f"Legenda: {Path(path).name}")
+            self.log(f"Legenda selecionada: {Path(path).name}")
+
+    def clear_subtitle(self):
+        self.subtitle_path = ""
+        self.lbl_sub.setText("Legenda: Nenhuma")
+        self.log("Legenda removida")
+
+    def toggle_custom_quality_ui(self):
+        mode = self.combo_quality.currentText()
+        self.frame_custom_quality.setVisible(mode == "Personalizada (Manual)" or mode.startswith("⚙️"))
+
+    def load_settings(self):
+        self.load_presets_to_combo()
+        self.entry_text.setText(self.config.data.get("last_text", ""))
+        self.chk_hw_accel.setChecked(self.config.data.get("use_hardware_accel", True) and self.has_nvidia)
+        self.spin_text_size.setValue(self.config.data.get("text_size", 22))
+        self.chk_metadata.setChecked(self.config.data.get("preserve_metadata", True))
+        
+        pos = self.config.data.get("text_position", "top")
+        pos_map = {"top": "Topo", "center": "Centro", "bottom": "Rodapé"}
+        self.combo_text_pos.setCurrentText(pos_map.get(pos, "Topo"))
+
+    def save_current_settings(self):
+        self.config.data["last_quality"] = self.combo_quality.currentText()
+        self.config.data["last_text"] = self.entry_text.text()
+        self.config.data["use_hardware_accel"] = self.chk_hw_accel.isChecked()
+        self.config.data["text_size"] = self.spin_text_size.value()
+        self.config.data["preserve_metadata"] = self.chk_metadata.isChecked()
+        
+        pos_map = {"Topo": "top", "Centro": "center", "Rodapé": "bottom"}
+        self.config.data["text_position"] = pos_map.get(self.combo_text_pos.currentText(), "top")
+        self.config.save()
+
+    def log(self, msg: str):
+        self.txt_log.append(msg)
+        sb = self.txt_log.verticalScrollBar()
+        sb.setValue(sb.maximum())
+
+    def start_conversion(self):
+        if not self.ffmpeg_bin: return QMessageBox.critical(self, "Erro", "FFmpeg não está configurado!")
+        if not self.video_path or not Path(self.video_path).exists(): return QMessageBox.warning(self, "Aviso", "Selecione um vídeo válido primeiro.")
+
+        self.save_current_settings()
+        self.btn_convert.setEnabled(False)
+        self.btn_cancel.setEnabled(True)
+        self.progress_bar.setValue(0)
+        self.txt_log.clear()
+        self.log("=" * 50)
+        self.log("INICIANDO CONVERSÃO")
+        self.log("=" * 50)
+        
+        cmd, output_path = self.build_command()
+        self.log(f"Arquivo de saída: {Path(output_path).name}")
+        self.log(f"Executando FFmpeg...")
+        
+        self.worker = FFmpegWorker(cmd, output_path)
+        self.worker.progress_signal.connect(self.progress_bar.setValue)
+        self.worker.log_signal.connect(self.log)
+        self.worker.finished_signal.connect(self.conversion_finished)
+        self.worker.start()
+
+    def cancel_conversion(self):
+        if self.worker and self.worker.isRunning():
+            reply = QMessageBox.question(self, "Cancelar", "Deseja realmente cancelar a conversão?", QMessageBox.Yes | QMessageBox.No)
+            if reply == QMessageBox.Yes:
+                self.log("Cancelando conversão...")
+                self.worker.stop()
+
+    def build_command(self):
+        # Determina os valores baseados na seleção atual
+        mode = self.combo_quality.currentText()
+        data = self.combo_quality.currentData()
+        
+        if isinstance(data, dict):
+            # É um preset customizado carregado
+            b_v = data.get('bitrate')
+            maxrate = data.get('maxrate', b_v)
+            bufsize = data.get('bufsize', b_v)
+            preset = data.get('preset', 'p6')
+        elif mode == "Personalizada (Manual)":
+            # Manual no momento
+            b_v = self.entry_custom_bitrate.text() if self.entry_custom_bitrate.text() else "3000k"
+            # Estima se vazio
+            maxrate = self.entry_custom_bitrate.text() 
+            if not maxrate: maxrate = str(int(float(b_v.replace('k','')) * 1.2)) + 'k'
+            else: maxrate = maxrate # Já está preenchido pelo user ou preset
+            
+            bufsize = self.entry_custom_bitrate.text()
+            if not bufsize: bufsize = str(int(float(b_v.replace('k','')) * 2)) + 'k'
+            else: bufsize = bufsize
+            
+            preset_text = self.combo_preset.currentText()
+            preset = preset_text.split()[0]
+        elif "Alta" in mode:
+            b_v, maxrate, bufsize = "4200k", "5200k", "9000k"
+            preset = "p6"
+        else: # Padrão
+            b_v, maxrate, bufsize = "2800k", "3500k", "6000k"
+            preset = "p6"
+
+        text = self.entry_text.text()
+        output_name = str(Path(self.video_path).parent / f"{Path(self.video_path).stem}@converted.mp4")
+
+        cmd = [self.ffmpeg_bin, "-y", "-err_detect", "ignore_err", "-fflags", "+genpts"]
+        
+        if self.chk_hw_accel.isChecked() and self.has_nvidia: cmd.extend(["-hwaccel", "cuda"])
+        cmd.extend(["-i", self.video_path])
+
+        filter_parts = []
+        font = get_font_path()
+        
+        if text:
+            safe_text = escape_filter_text(text)
+            pos_map = {"Topo": "y=20", "Centro": "y=(h-text_h)/2", "Rodapé": "y=h-text_h-20"}
+            y_pos = pos_map.get(self.combo_text_pos.currentText(), "y=20")
+            
+            if font:
+                safe_font = escape_path_for_filter(font)
+                drawtext = (f"drawtext=fontfile='{safe_font}':text='{safe_text}':fontcolor=white@0.9:fontsize={self.spin_text_size.value()}:box=1:boxcolor=black@0.4:boxborderw=10:x=(w-text_w)/2:{y_pos}")
+            else:
+                drawtext = (f"drawtext=text='{safe_text}':fontcolor=white@0.9:fontsize={self.spin_text_size.value()}:box=1:boxcolor=black@0.4:boxborderw=10:x=(w-text_w)/2:{y_pos}")
+            filter_parts.append(drawtext)
+
+        if self.subtitle_path and Path(self.subtitle_path).exists():
+            safe_sub = escape_path_for_filter(self.subtitle_path)
+            filter_parts.append(f"subtitles='{safe_sub}'")
+
+        if filter_parts:
+            filter_complex = f"[0:v]{','.join(filter_parts)}[vout]"
+            cmd.extend(["-filter_complex", filter_complex, "-map", "[vout]"])
+        else:
+            cmd.extend(["-map", "0:v"])
+
+        selected_audio_index = self.combo_audio.currentData()
+        if selected_audio_index is not None: cmd.extend(["-map", f"0:{selected_audio_index}"])
+        else: cmd.extend(["-map", "0:a?"])
+        
+        if self.chk_hw_accel.isChecked() and self.has_nvidia: cmd.extend(["-c:v", "h264_nvenc", "-preset", preset])
+        else: cmd.extend(["-c:v", "libx264", "-preset", "medium"])
+        
+        cmd.extend(["-rc", "vbr", "-b:v", b_v, "-maxrate", maxrate, "-bufsize", bufsize, "-profile:v", "high", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k"])
+        
+        if self.chk_metadata.isChecked(): cmd.extend(["-map_metadata", "0"])
+        cmd.extend(["-movflags", "+faststart", output_name])
+        
+        return cmd, output_name
+
+    def conversion_finished(self, code: int, output_path: str):
+        self.btn_convert.setEnabled(True)
+        self.btn_cancel.setEnabled(False)
+        self.log("=" * 50)
+        if code == 0:
+            self.log("CONVERSÃO CONCLUÍDA COM SUCESSO!")
+            self.log(f"Arquivo salvo: {Path(output_path).name}")
+            if Path(output_path).exists():
+                size_mb = Path(output_path).stat().st_size / (1024 * 1024)
+                self.log(f"Tamanho do arquivo: {size_mb:.2f} MB")
+            QMessageBox.information(self, "Sucesso", f"Conversão finalizada!\n\nArquivo: {Path(output_path).name}")
+        elif code == -2: self.log("CONVERSÃO CANCELADA PELO USUÁRIO")
+        else:
+            self.log(f"FALHA NA CONVERSÃO (Código de erro: {code})")
+            QMessageBox.warning(self, "Erro na Conversão", f"A conversão falhou com código {code}.\nVerifique o log para mais detalhes.")
+
+    def open_output_folder(self):
+        if self.video_path: QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(self.video_path).parent.absolute())))
+
+    def closeEvent(self, event):
+        if self.worker and self.worker.isRunning():
+            reply = QMessageBox.question(self, "Fechar", "Há uma conversão em andamento. Deseja realmente sair?", QMessageBox.Yes | QMessageBox.No)
+            if reply == QMessageBox.Yes:
+                self.worker.stop()
+                self.worker.wait()
+                event.accept()
+            else: event.ignore()
+        else: event.accept()
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    icon_path = Path(__file__).parent / "icon.ico"
+    if icon_path.exists():
+        from PySide6.QtGui import QIcon
+        app.setWindowIcon(QIcon(str(icon_path)))
+    window = VideoConverterApp()
+    window.show()
+    sys.exit(app.exec())
