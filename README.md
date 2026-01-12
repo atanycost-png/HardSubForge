@@ -1,93 +1,104 @@
-🎬 HardSub Converter Pro
 
-HardSub Converter Pro é uma aplicação desktop poderosa e intuitiva para conversão de vídeos com legendas embutidas (hardcoded). O software combina a flexibilidade do FFmpeg com uma interface moderna, oferecendo controle total sobre qualidade, trilhas de áudio e marcas d'água.
-✨ Funcionalidades
+```markdown
+# 🎬 HardSub Converter Pro
 
-    📝 Legendas Hardcoded: Suporte nativo para formatos .srt, .ass e .ssa.
+![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
+![PySide6](https://img.shields.io/badge/PySide6-41CD52?style=for-the-badge&logo=qt&logoColor=white)
+![FFmpeg](https://img.shields.io/badge/FFmpeg-007808?style=for-the-badge&logo=ffmpeg&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-blue.svg?style=for-the-badge)
 
-    🏷️ Branding Personalizado: Adicione textos ou marcas d'água com controle total de posição e tamanho.
+Aplicação desktop em Python para **converter vídeos com legendas embutidas (hardcoded)**, texto/watermark customizável e controle avançado de qualidade, utilizando **FFmpeg** com suporte opcional a **aceleração NVIDIA NVENC**.
 
-    🎧 Gestão de Áudio: Selecione faixas específicas em arquivos multi-áudio.
+---
 
-    🚀 Alta Performance: Suporte a aceleração por hardware NVIDIA NVENC com fallback inteligente para CPU.
+## ✨ Funcionalidades
 
-    🎚️ Presets Flexíveis: Editor de presets integrado (bitrate, presets NVENC) e salvamento automático em config.json.
+* **🎬 Conversão de Vídeo:** Processamento robusto via FFmpeg.
+* **📝 Legendas Hardcoded:** Embutir legendas externas nos formatos `.srt`, `.ass` e `.ssa`.
+* **🏷️ Watermark:** Adicionar texto ou marca d'água com posição e tamanho configuráveis.
+* **🎧 Gestão de Áudio:** Seleção manual de faixas de áudio para arquivos multi-idioma.
+* **🎚️ Presets de Qualidade:** Opções prontas (Alta/Padrão) e editor de presets personalizados (Bitrate/NVENC).
+* **🚀 Aceleração por Hardware:** Suporte a NVIDIA (NVENC) com fallback automático para CPU (`libx264`).
+* **📊 Interface Moderna:** Suporte a **Drag & Drop**, log detalhado e barra de progresso.
+* **💻 Multiplataforma:** Compatível com Windows, Linux e macOS*.
 
-    🖱️ Experiência Moderna: Interface limpa com suporte a Drag & Drop e barra de progresso em tempo real.
+> \* *A aceleração por hardware é aplicada automaticamente apenas em GPUs NVIDIA.*
 
-    💻 Multiplataforma: Compatível com Windows, Linux e macOS.
+---
 
-🧠 Inteligência de Processamento
+## 🧠 Como funciona a aceleração por hardware
 
-O HardSub Converter Pro foi desenhado para ser eficiente sem exigir esforço do usuário:
+O aplicativo detecta automaticamente o hardware disponível para otimizar a velocidade:
 
-    Detecção Automática: O sistema verifica a presença de drivers NVIDIA.
+1.  **Detecção de GPU:** O sistema verifica se há uma GPU NVIDIA compatível.
+2.  **Uso de NVENC:** Se detectada, o app utiliza o encoder de hardware para conversões ultrarrápidas.
+3.  **Fallback para CPU:** Caso não haja GPU NVIDIA, a conversão é feita automaticamente via CPU (libx264), garantindo que o processo nunca falhe.
 
-    Codificação: * Com GPU NVIDIA: Utiliza o encoder h264_nvenc para velocidade máxima.
+---
 
-        Sem GPU/Outros: Utiliza o encoder libx264 (CPU) garantindo compatibilidade universal.
+## 📦 Requisitos
 
-    Metadados: Opção para preservar informações originais do arquivo.
+* **Python 3.9+**
+* **FFmpeg:** Instalado no sistema ou permitido o download automático (funcionalidade disponível para Windows).
+* **Bibliotecas:** PySide6.
 
-📦 Requisitos & Instalação
-Pré-requisitos
+---
 
-    Python: Versão 3.9 ou superior.
+## ▶️ Executando o projeto
 
-    FFmpeg: Deve estar no PATH do sistema (No Windows, o app oferece download automático).
+Para rodar o projeto localmente, siga os passos abaixo:
 
-Instalação
-
-    Clone o repositório:
-    Bash
-
-git clone https://github.com/seu-usuario/hardsub-converter-pro.git
-cd hardsub-converter-pro
-
-Instale as dependências:
-Bash
-
+```bash
+# Instale a interface gráfica
 pip install PySide6
 
-Inicie a aplicação:
-Bash
+# Execute a aplicação
+python conversor2.py
 
-    python conversor2.py
+```
 
-🛠️ Especificações Técnicas
-Categoria	Suportados
-Formatos de Vídeo	.mp4, .mkv, .avi, .mov, .wmv, .flv
-Formatos de Legenda	.srt, .ass, .ssa
-Presets	Alta, Padrão, Personalizado e Manual
-Saída	nome_do_arquivo@converted.mp4
-🧪 Status do Projeto
+*Nota: No Windows, o aplicativo tentará baixar o FFmpeg automaticamente caso não o encontre no PATH.*
 
-    [x] Interface Base (PySide6)
+---
 
-    [x] Integração FFmpeg
+## ⚙️ Especificações Técnicas
 
-    [x] Suporte NVIDIA NVENC
+### 🗂️ Formatos Suportados
 
-    [ ] Suporte AMD (AMF/VAAPI) - Em planejamento
+| Tipo | Extensões |
+| --- | --- |
+| **Vídeo** | `.mp4`, `.mkv`, `.avi`, `.mov`, `.wmv`, `.flv` |
+| **Legendas** | `.srt`, `.ass`, `.ssa` |
 
-    [ ] Conversão em lote (Batch processing) - Em planejamento
+### 📁 Arquivos Gerados
 
-🤝 Contribuições
+Os vídeos convertidos são salvos no mesmo diretório do arquivo original seguindo o padrão:
+`nome_do_video@converted.mp4`
 
-Contribuições tornam a comunidade open-source um lugar incrível para aprender e criar.
+---
 
-    Faça um Fork do projeto.
+## 🧪 Status do Projeto
 
-    Crie uma Branch para sua feature (git checkout -b feature/NovaFeature).
+* ✅ Estável para uso diário.
+* ✅ Focado em simplicidade e estabilidade.
+* ⚠️ Suporte a AMD/VAAPI não implementado (usa CPU automaticamente nestes casos).
 
-    Dê um Commit nas suas alterações (git commit -m 'Add: Nova Feature').
+---
 
-    Faça um Push para a Branch (git push origin feature/NovaFeature).
+## 🤝 Contribuições
 
-    Abra um Pull Request.
+Contribuições são muito bem-vindas!
 
-📄 Licença
+1. Faça um Fork do projeto.
+2. Crie uma branch para sua modificação (`git checkout -b feature/nova-funcionalidade`).
+3. Envie um Pull Request.
 
-Distribuído sob a licença MIT. Veja LICENSE para mais informações.
+Para mais detalhes, veja o arquivo `CONTRIBUTING.md`.
 
-    Nota: A aceleração por hardware (NVENC) requer drivers atualizados da NVIDIA instalados no sistema host.
+---
+
+## 📄 Licença
+
+Este projeto é distribuído sob a licença **MIT**. Sinta-se livre para usar, modificar e distribuir conforme desejar.
+
+```
