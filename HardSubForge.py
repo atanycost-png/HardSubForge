@@ -15,14 +15,14 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QComboBox, QTextEdit, QFileDialog, 
                                QProgressBar, QMessageBox, QCheckBox, QSpinBox, 
                                QFrame, QDialog, QFormLayout, QDialogButtonBox,
-                               QSystemTrayIcon, QMenu)
-from PySide6.QtCore import Qt, QThread, Signal, QUrl
+                               QSystemTrayIcon, QMenu, QTabWidget, QScrollArea)
+from PySide6.QtCore import Qt, QThread, Signal, QUrl, QTimer
 from PySide6.QtGui import QFont, QColor, QPalette, QDesktopServices
 
 # --- CONFIGURAÇÕES E UTILITÁRIOS ---
 
 CONFIG_FILE = "config.json"
-APP_VERSION = "2.2.2"
+APP_VERSION = "2.3.0"
 
 class ConfigManager:
     """Gerencia o salvamento e carregamento de configurações."""
@@ -337,14 +337,14 @@ class AddPresetDialog(QDialog):
 # --- WIDGETS ---
 
 class DropArea(QLabel):
-    file_dropped = Signal(str)
+    files_dropped = Signal(list)
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent_window = parent
         self.setAlignment(Qt.AlignCenter)
-        self.setText("Arraste o arquivo de vídeo aqui\nou clique para selecionar")
+        self.setText("Arraste arquivos de vídeo aqui\nou clique para selecionar\n(Suporta múltiplos arquivos)")
         self.setStyleSheet("""
-            QLabel { background-color: #2B2B2B; border: 2px dashed #555; border-radius: 10px; color: #AAA; padding: 30px; min-height: 100px; }
+            QLabel { background-color: #2B2B2B; border: 2px dashed #555; border-radius: 10px; color: #AAA; padding: 30px; min-height: 120px; }
             QLabel:hover { border-color: #4A90E2; color: #FFF; background-color: #333; }
         """)
         self.setAcceptDrops(True)
@@ -352,7 +352,8 @@ class DropArea(QLabel):
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
             urls = event.mimeData().urls()
-            if urls and urls[0].toLocalFile().lower().endswith(('.mkv', '.mp4', '.avi', '.mov', '.wmv', '.flv')):
+            video_files = [u.toLocalFile().lower() for u in urls if u.toLocalFile().lower().endswith(('.mkv', '.mp4', '.avi', '.mov', '.wmv', '.flv'))]
+            if video_files:
                 event.accept()
                 self.setStyleSheet(self.styleSheet().replace("#555", "#4A90E2"))
                 return
@@ -363,8 +364,13 @@ class DropArea(QLabel):
 
     def dropEvent(self, event):
         self.setStyleSheet(self.styleSheet().replace("#4A90E2", "#555"))
-        files = [u.toLocalFile() for u in event.mimeData().urls()]
-        if files: self.file_dropped.emit(files[0])
+        video_files = []
+        for url in event.mimeData().urls():
+            file_path = url.toLocalFile()
+            if file_path.lower().endswith(('.mkv', '.mp4', '.avi', '.mov', '.wmv', '.flv')):
+                video_files.append(file_path)
+        if video_files: 
+            self.files_dropped.emit(video_files)
 
     def mousePressEvent(self, event):
         if self.parent_window and hasattr(self.parent_window, 'select_video'):
@@ -393,6 +399,9 @@ class VideoConverterApp(QMainWindow):
         self.worker = None
         self.has_nvidia = check_nvidia_gpu()
         self.ffmpeg_bin = get_ffmpeg_binary()
+        self.batch_queue = []
+        self.batch_index = 0
+        self.batch_mode = False
         
         # Setup system tray for notifications
         self.setup_system_tray()
@@ -457,7 +466,7 @@ class VideoConverterApp(QMainWindow):
 
         # Drag & Drop
         self.drop_area = DropArea(self)
-        self.drop_area.file_dropped.connect(self.handle_file_drop)
+        self.drop_area.files_dropped.connect(self.handle_files_drop)
         layout.addWidget(self.drop_area)
 
         # Legenda
@@ -819,6 +828,115 @@ class VideoConverterApp(QMainWindow):
         self.btn_open_folder.setEnabled(True)
         
         self.analyze_audio_tracks()
+    
+    def handle_files_drop(self, files: list):
+        """Lida com múltiplos arquivos dropados."""
+        if len(files) == 0:
+            return
+        
+        if len(files) == 1:
+            # Single file mode
+            self.handle_file_drop(files[0])
+        else:
+            # Batch mode
+            reply = QMessageBox.question(
+                self,
+                "Conversão em Lote",
+                f"Deseja converter {len(files)} arquivos em lote?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if reply == QMessageBox.Yes:
+                self.batch_queue = files.copy()
+                self.batch_mode = True
+                self.batch_index = 0
+                self.log(f"Modo de lote ativado: {len(files)} arquivos na fila")
+                self.process_batch_queue()
+            else:
+                # Just load first file
+                self.handle_file_drop(files[0])
+    
+    def process_batch_queue(self):
+        """Processa a fila de conversão em lote."""
+        if self.batch_index >= len(self.batch_queue):
+            # Batch complete
+            self.batch_mode = False
+            self.batch_queue = []
+            self.batch_index = 0
+            self.log("FILA DE CONVERSÃO CONCLUÍDA!")
+            self.tray_icon.showMessage(
+                "HardSub Converter Pro",
+                "Todas as conversões em lote foram concluídas!",
+                QSystemTrayIcon.Information,
+                5000
+            )
+            QMessageBox.information(self, "Conclusão", "Todas as conversões em lote foram concluídas com sucesso!")
+            self.btn_convert.setEnabled(True)
+            self.btn_cancel.setEnabled(False)
+            return
+        
+        # Load next file
+        video_path = self.batch_queue[self.batch_index]
+        self.log(f"\n{'='*60}")
+        self.log(f"Arquivo {self.batch_index + 1}/{len(self.batch_queue)}: {Path(video_path).name}")
+        self.log(f"{'='*60}")
+        
+        # Auto-load file without prompt
+        self.video_path = video_path
+        base_name = Path(video_path).stem
+        
+        # Auto-detect subtitle
+        found_sub = False
+        for ext in ['.srt', '.ass', '.ssa']:
+            possible_sub = Path(video_path).parent / f"{base_name}{ext}"
+            if possible_sub.exists():
+                self.subtitle_path = str(possible_sub)
+                self.lbl_sub.setText(f"Legenda: {possible_sub.name}")
+                found_sub = True
+                break
+        if not found_sub:
+            self.subtitle_path = ""
+            self.lbl_sub.setText("Legenda: Nenhuma detectada")
+        
+        self.drop_area.setText(f"Lote: {self.batch_index + 1}/{len(self.batch_queue)}\n{Path(video_path).name}")
+        self.btn_open_folder.setEnabled(True)
+        
+        # Start conversion automatically
+        self.start_batch_conversion()
+
+    def start_batch_conversion(self):
+        """Inicia conversão de um arquivo na fila de lote."""
+        if not self.ffmpeg_bin:
+            QMessageBox.critical(self, "Erro", "FFmpeg não está configurado!")
+            return
+        
+        self.save_current_settings()
+        self.progress_bar.setValue(0)
+        self.txt_log.clear()
+        
+        cmd, output_path = self.build_command()
+        self.log(f"Arquivo de saída: {Path(output_path).name}")
+        self.log(f"Executando FFmpeg...")
+        
+        self.worker = FFmpegWorker(cmd, output_path)
+        self.worker.progress_signal.connect(self.progress_bar.setValue)
+        self.worker.log_signal.connect(self.log)
+        self.worker.finished_signal.connect(self.batch_conversion_finished)
+        self.worker.start()
+
+    def batch_conversion_finished(self, code: int, output_path: str):
+        """Callback quando uma conversão em lote termina."""
+        self.log(f"{'='*60}")
+        if code == 0:
+            self.log(f"✓ CONVERSÃO CONCLUÍDA: {Path(output_path).name}")
+            if Path(output_path).exists():
+                size_mb = Path(output_path).stat().st_size / (1024 * 1024)
+                self.log(f"  Tamanho: {size_mb:.2f} MB")
+        else:
+            self.log(f"✗ FALHA NA CONVERSÃO (Código: {code})")
+        
+        # Move to next file
+        self.batch_index += 1
+        QTimer.singleShot(1000, self.process_batch_queue)
 
     def analyze_audio_tracks(self):
         self.combo_audio.clear()
