@@ -14,14 +14,15 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QLabel, QPushButton, QLineEdit,
                                QComboBox, QTextEdit, QFileDialog, 
                                QProgressBar, QMessageBox, QCheckBox, QSpinBox, 
-                               QFrame, QDialog, QFormLayout, QDialogButtonBox)
+                               QFrame, QDialog, QFormLayout, QDialogButtonBox,
+                               QSystemTrayIcon, QMenu)
 from PySide6.QtCore import Qt, QThread, Signal, QUrl
 from PySide6.QtGui import QFont, QColor, QPalette, QDesktopServices
 
 # --- CONFIGURAÇÕES E UTILITÁRIOS ---
 
 CONFIG_FILE = "config.json"
-APP_VERSION = "2.2.1"
+APP_VERSION = "2.2.2"
 
 class ConfigManager:
     """Gerencia o salvamento e carregamento de configurações."""
@@ -393,10 +394,25 @@ class VideoConverterApp(QMainWindow):
         self.has_nvidia = check_nvidia_gpu()
         self.ffmpeg_bin = get_ffmpeg_binary()
         
+        # Setup system tray for notifications
+        self.setup_system_tray()
+        
         self.setup_ui()
         self.load_settings()
         if not self.ffmpeg_bin:
             self.show_ffmpeg_warning()
+
+    def setup_system_tray(self):
+        """Configura o ícone da bandeja do sistema para notificações."""
+        self.tray_icon = QSystemTrayIcon(self)
+        
+        # Tenta carregar ícone do app ou usa ícone padrão
+        icon_path = Path(__file__).parent / "icon.ico"
+        if icon_path.exists():
+            from PySide6.QtGui import QIcon
+            self.tray_icon.setIcon(QIcon(str(icon_path)))
+        
+        self.tray_icon.show()
 
     def apply_dark_theme(self):
         app = QApplication.instance()
@@ -513,6 +529,13 @@ class VideoConverterApp(QMainWindow):
         btn_add_preset.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold; border-radius: 5px; border: none;")
         btn_add_preset.clicked.connect(self.open_add_preset_dialog)
         quality_layout.addWidget(btn_add_preset)
+        
+        btn_delete_preset = QPushButton("-")
+        btn_delete_preset.setFixedSize(30, 30)
+        btn_delete_preset.setToolTip("Deletar Preset Selecionado")
+        btn_delete_preset.setStyleSheet("background-color: #D32F2F; color: white; font-weight: bold; border-radius: 5px; border: none;")
+        btn_delete_preset.clicked.connect(self.delete_preset)
+        quality_layout.addWidget(btn_delete_preset)
         
         layout.addLayout(quality_layout)
         
@@ -650,6 +673,37 @@ class VideoConverterApp(QMainWindow):
         else:
             # Padrão fixo (Alta ou Padrão)
             self.frame_custom_quality.setVisible(False)
+
+    def delete_preset(self):
+        """Deleta o preset customizado selecionado."""
+        mode = self.combo_quality.currentText()
+        data = self.combo_quality.currentData()
+        
+        # Só permite deletar presets customizados (que são objetos dict)
+        if not isinstance(data, dict):
+            QMessageBox.information(self, "Info", "Apenas presets customizados podem ser deletados.\nUse o botão '+' para criar novos presets.")
+            return
+        
+        preset_name = data.get('name', 'Preset')
+        reply = QMessageBox.question(
+            self, 
+            "Deletar Preset", 
+            f"Deseja realmente deletar o preset '{preset_name}'?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            # Remove o preset da lista
+            custom_presets = self.config.data.get('custom_presets', [])
+            for i, p in enumerate(custom_presets):
+                if p.get('name') == preset_name:
+                    custom_presets.pop(i)
+                    break
+            
+            self.config.save()
+            self.load_presets_to_combo()
+            self.log(f"Preset '{preset_name}' deletado com sucesso")
+            QMessageBox.information(self, "Sucesso", f"Preset '{preset_name}' foi deletado!")
 
     # --- RESTO DAS FUNÇÕES ---
 
@@ -956,10 +1010,32 @@ class VideoConverterApp(QMainWindow):
             if Path(output_path).exists():
                 size_mb = Path(output_path).stat().st_size / (1024 * 1024)
                 self.log(f"Tamanho do arquivo: {size_mb:.2f} MB")
+            
+            # System tray notification
+            self.tray_icon.showMessage(
+                "HardSub Converter Pro",
+                f"Conversão finalizada!\n\n{Path(output_path).name}",
+                QSystemTrayIcon.Information,
+                5000
+            )
+            
             QMessageBox.information(self, "Sucesso", f"Conversão finalizada!\n\nArquivo: {Path(output_path).name}")
-        elif code == -2: self.log("CONVERSÃO CANCELADA PELO USUÁRIO")
+        elif code == -2: 
+            self.log("CONVERSÃO CANCELADA PELO USUÁRIO")
+            self.tray_icon.showMessage(
+                "HardSub Converter Pro",
+                "Conversão cancelada",
+                QSystemTrayIcon.Warning,
+                3000
+            )
         else:
             self.log(f"FALHA NA CONVERSÃO (Código de erro: {code})")
+            self.tray_icon.showMessage(
+                "HardSub Converter Pro",
+                f"Falha na conversão (Código: {code})",
+                QSystemTrayIcon.Critical,
+                5000
+            )
             QMessageBox.warning(self, "Erro na Conversão", f"A conversão falhou com código {code}.\nVerifique o log para mais detalhes.")
 
     def open_output_folder(self):
