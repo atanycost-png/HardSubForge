@@ -21,7 +21,7 @@ from PySide6.QtGui import QFont, QColor, QPalette, QDesktopServices
 # --- CONFIGURAÇÕES E UTILITÁRIOS ---
 
 CONFIG_FILE = "config.json"
-APP_VERSION = "2.2.0"
+APP_VERSION = "2.2.1"
 
 class ConfigManager:
     """Gerencia o salvamento e carregamento de configurações."""
@@ -101,6 +101,38 @@ def escape_path_for_filter(path: str) -> str:
     path = path.replace(":", "\\:")
     path = path.replace("'", "\\'")
     return path
+
+def parse_bitrate(bitrate_str: str) -> int:
+    """Converte string de bitrate (ex: '5000k') para valor numérico em kbps."""
+    if not bitrate_str:
+        return 0
+    match = re.match(r'(\d+)k', bitrate_str)
+    if match:
+        return int(match.group(1))
+    return 0
+
+def format_bitrate(kbps: int) -> str:
+    """Formata valor numérico em kbps para string (ex: 5000 -> '5000k')."""
+    return f"{kbps}k"
+
+def calculate_bitrate_values(bitrate_str: str, maxrate_str: str = "", bufsize_str: str = "") -> tuple:
+    """
+    Calcula valores de bitrate, maxrate e bufsize.
+    Retorna tupla (bitrate, maxrate, bufsize) formatados como strings.
+    """
+    bitrate = parse_bitrate(bitrate_str) or 3000
+    
+    if not maxrate_str:
+        maxrate = int(bitrate * 1.2)
+    else:
+        maxrate = parse_bitrate(maxrate_str) or bitrate
+    
+    if not bufsize_str:
+        bufsize = int(bitrate * 2)
+    else:
+        bufsize = parse_bitrate(bufsize_str) or int(bitrate * 2)
+    
+    return format_bitrate(bitrate), format_bitrate(maxrate), format_bitrate(bufsize)
 
 def get_ffmpeg_binary() -> Optional[str]:
     script_dir = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
@@ -268,6 +300,22 @@ class AddPresetDialog(QDialog):
     def validate_and_accept(self):
         if not self.input_name.text() or not self.input_bitrate.text():
             QMessageBox.warning(self, "Atenção", "Preencha pelo menos o Nome e o Bitrate.")
+            return
+        
+        # Valida formato do bitrate
+        bitrate_pattern = re.compile(r'^\d+k$')
+        if not bitrate_pattern.match(self.input_bitrate.text()):
+            QMessageBox.warning(self, "Atenção", "O Bitrate deve seguir o formato 'XXXXk' (ex: 5000k, 3000k, etc)")
+            return
+        
+        # Valida formato do maxrate se fornecido
+        if self.input_maxrate.text() and not bitrate_pattern.match(self.input_maxrate.text()):
+            QMessageBox.warning(self, "Atenção", "O Maxrate deve seguir o formato 'XXXXk' (ex: 5200k)")
+            return
+        
+        # Valida formato do bufsize se fornecido
+        if self.input_bufsize.text() and not bitrate_pattern.match(self.input_bufsize.text()):
+            QMessageBox.warning(self, "Atenção", "O Bufsize deve seguir o formato 'XXXXk' (ex: 9000k)")
             return
         
         # Extrai apenas o código do preset (p1, p4, etc)
@@ -626,6 +674,8 @@ class VideoConverterApp(QMainWindow):
         self.log("Iniciando download do FFmpeg...")
         url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
         dest_zip = Path("ffmpeg_temp.zip")
+        temp_extract_dir = Path("ffmpeg_temp_extract")
+        
         try:
             def report_progress(block_num, block_size, total_size):
                 if total_size > 0:
@@ -633,21 +683,53 @@ class VideoConverterApp(QMainWindow):
                     percent = min(int(downloaded / total_size * 100), 100)
                     self.progress_bar.setValue(percent)
                     self.log(f"Baixando FFmpeg... {percent}%")
+            
             urllib.request.urlretrieve(url, str(dest_zip), reporthook=report_progress)
             self.log("Download concluído. Extraindo arquivos...")
             import zipfile
+            
+            # Limpa diretório temporário se existir
+            if temp_extract_dir.exists():
+                shutil.rmtree(temp_extract_dir)
+            temp_extract_dir.mkdir()
+            
             with zipfile.ZipFile(dest_zip, 'r') as zip_ref:
-                for file in zip_ref.namelist():
-                    if file.endswith("ffmpeg.exe") or file.endswith("ffprobe.exe"):
-                        with zip_ref.open(file) as source: Path(file).write_bytes(source.read())
+                zip_ref.extractall(temp_extract_dir)
+            
+            # Encontra e copia ffmpeg.exe e ffprobe.exe
+            script_dir = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
+            copied_files = []
+            
+            for exe_file in temp_extract_dir.rglob("ffmpeg.exe"):
+                shutil.copy2(exe_file, script_dir / "ffmpeg.exe")
+                copied_files.append("ffmpeg.exe")
+                break
+            
+            for exe_file in temp_extract_dir.rglob("ffprobe.exe"):
+                shutil.copy2(exe_file, script_dir / "ffprobe.exe")
+                copied_files.append("ffprobe.exe")
+                break
+            
+            # Limpa arquivos temporários
             dest_zip.unlink()
-            self.log("FFmpeg instalado com sucesso!")
-            self.ffmpeg_bin = get_ffmpeg_binary()
-            self.update_ffmpeg_status_ui()
-            self.progress_bar.setValue(0)
-            QMessageBox.information(self, "Sucesso", "FFmpeg instalado com sucesso!")
+            shutil.rmtree(temp_extract_dir)
+            
+            if copied_files:
+                self.log(f"FFmpeg instalado com sucesso! Arquivos: {', '.join(copied_files)}")
+                self.ffmpeg_bin = get_ffmpeg_binary()
+                self.update_ffmpeg_status_ui()
+                self.progress_bar.setValue(0)
+                QMessageBox.information(self, "Sucesso", "FFmpeg instalado com sucesso!")
+            else:
+                raise Exception("Arquivos ffmpeg.exe/ffprobe.exe não encontrados no pacote baixado")
+                
         except Exception as e:
             self.log(f"Erro no download: {e}")
+            # Limpa arquivos temporários em caso de erro
+            if dest_zip.exists():
+                dest_zip.unlink()
+            if temp_extract_dir.exists():
+                shutil.rmtree(temp_extract_dir)
             QMessageBox.critical(self, "Erro", f"Falha ao baixar FFmpeg:\n{e}\n\nPor favor, baixe manualmente em ffmpeg.org")
 
     def select_ffmpeg_manual(self):
@@ -794,20 +876,16 @@ class VideoConverterApp(QMainWindow):
         if isinstance(data, dict):
             # É um preset customizado carregado
             b_v = data.get('bitrate')
-            maxrate = data.get('maxrate', b_v)
-            bufsize = data.get('bufsize', b_v)
+            maxrate = data.get('maxrate', '')
+            bufsize = data.get('bufsize', '')
             preset = data.get('preset', 'p6')
+            # Usa a função auxiliar para calcular valores
+            b_v, maxrate, bufsize = calculate_bitrate_values(b_v, maxrate, bufsize)
         elif mode == "Personalizada (Manual)":
             # Manual no momento
             b_v = self.entry_custom_bitrate.text() if self.entry_custom_bitrate.text() else "3000k"
-            # Estima se vazio
-            maxrate = self.entry_custom_bitrate.text() 
-            if not maxrate: maxrate = str(int(float(b_v.replace('k','')) * 1.2)) + 'k'
-            else: maxrate = maxrate # Já está preenchido pelo user ou preset
-            
-            bufsize = self.entry_custom_bitrate.text()
-            if not bufsize: bufsize = str(int(float(b_v.replace('k','')) * 2)) + 'k'
-            else: bufsize = bufsize
+            # Usa a função auxiliar para calcular valores automaticamente
+            b_v, maxrate, bufsize = calculate_bitrate_values(b_v)
             
             preset_text = self.combo_preset.currentText()
             preset = preset_text.split()[0]
@@ -819,7 +897,10 @@ class VideoConverterApp(QMainWindow):
             preset = "p6"
 
         text = self.entry_text.text()
-        output_name = str(Path(self.video_path).parent / f"{Path(self.video_path).stem}@converted.mp4")
+        
+        # Sanitiza o nome do arquivo de saída
+        stem = re.sub(r'[<>:"/\\|?*]', '_', Path(self.video_path).stem)
+        output_name = str(Path(self.video_path).parent / f"{stem}@converted.mp4")
 
         cmd = [self.ffmpeg_bin, "-y", "-err_detect", "ignore_err", "-fflags", "+genpts"]
         
