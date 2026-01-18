@@ -16,14 +16,15 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QComboBox, QTextEdit, QFileDialog,
                                QProgressBar, QMessageBox, QCheckBox, QSpinBox,
                                QFrame, QDialog, QFormLayout, QDialogButtonBox,
-                               QSystemTrayIcon, QMenu, QTabWidget, QScrollArea)
+                               QSystemTrayIcon, QMenu, QTabWidget, QScrollArea,
+                               QRadioButton)
 from PySide6.QtCore import Qt, QThread, Signal, QUrl, QTimer
 from PySide6.QtGui import QFont, QColor, QPalette, QDesktopServices
 
 # --- CONFIGURAÇÕES E UTILITÁRIOS ---
 
 CONFIG_FILE = "config.json"
-APP_VERSION = "2.3.1"
+APP_VERSION = "2.4.1"
 
 # Regex patterns pre-compiled for performance
 TIME_PATTERN = re.compile(r'time=(\d{2}):(\d{2}):(\d{2}\.\d{2})')
@@ -31,6 +32,115 @@ DURATION_PATTERN = re.compile(r'Duration: (\d{2}):(\d{2}):(\d{2}\.\d{2})')
 BITRATE_PATTERN = re.compile(r'(\d+)k')
 BITRATE_STRICT_PATTERN = re.compile(r'^\d+k$')
 SANITIZE_PATTERN = re.compile(r'[<>:"/\\|?*]')
+
+LANGUAGE_NAMES = {
+    "aar": "Afar", "abk": "Abkhazian", "ace": "Achinese", "ach": "Acoli", "ada": "Adangme",
+    "ady": "Adyghe", "afa": "Afro-Asiatic", "afh": "Afrihili", "afr": "Africâner", "ain": "Ainu",
+    "aka": "Akan", "akk": "Akkadian", "alb": "Albanês", "ale": "Aleut", "alg": "Algonquian",
+    "alt": "Southern Altai", "amh": "Amárico", "ang": "Inglês Antigo", "anp": "Angika", "apa": "Apache",
+    "ara": "Árabe", "arc": "Aramaico", "arg": "Aragonês", "arm": "Armênio", "arn": "Mapudungun",
+    "arp": "Arapaho", "art": "Artificial", "arw": "Arawak", "asm": "Assamês", "ast": "Asturiano",
+    "ath": "Athapascan", "aus": "Australian", "ava": "Avaric", "ave": "Avestan", "awa": "Awadhi",
+    "aym": "Aymará", "aze": "Azerbaijano", "bad": "Banda", "bai": "Bamileke", "bak": "Bashkir",
+    "bal": "Baluchi", "bam": "Bambara", "ban": "Balinese", "baq": "Basque", "bas": "Basa",
+    "bat": "Baltic", "bej": "Beja", "bel": "Bielorrusso", "bem": "Bemba", "ben": "Bengali",
+    "ber": "Berber", "bho": "Bhojpuri", "bih": "Bihari", "bik": "Bikol", "bin": "Bini",
+    "bis": "Bislama", "bla": "Siksiká", "bnt": "Bantu", "bos": "Bósnio", "bra": "Braj",
+    "bre": "Bretão", "btk": "Batak", "bua": "Buriat", "bug": "Buginese", "bul": "Búlgaro",
+    "bur": "Birmanês", "byn": "Blin", "cad": "Caddo", "cai": "Central American Indian", "car": "Carib",
+    "cat": "Catalão", "cau": "Caucasian", "ceb": "Cebuano", "cel": "Celtic", "ces": "Tcheco",
+    "cha": "Chamorro", "chb": "Chibcha", "che": "Checheno", "chg": "Chagatai", "chi": "Chinês",
+    "chk": "Chuukese", "chm": "Mari", "chn": "Chinook", "cho": "Choctaw", "chp": "Chipewyan",
+    "chr": "Cherokee", "chu": "Church Slavic", "chv": "Chuvash", "chy": "Cheyenne", "cmc": "Chamic",
+    "cnr": "Montenegrino", "cop": "Coptic", "cor": "Cornish", "cos": "Córsego", "cpe": "Creoles",
+    "cpf": "French-based Creoles", "cpp": "Portuguese-based Creoles", "cre": "Cree", "crh": "Crimean Tatar",
+    "crp": "Creoles", "csb": "Kashubian", "cus": "Cushitic", "cym": "Galês", "cze": "Tcheco",
+    "dak": "Dakota", "dan": "Dinamarquês", "dar": "Dargwa", "day": "Dayak", "del": "Delaware",
+    "den": "Slave", "deu": "Alemão", "dgr": "Dogrib", "din": "Dinka", "div": "Dhivehi",
+    "doi": "Dogri", "dra": "Dravidian", "dsb": "Lower Sorbian", "dua": "Duala", "dum": "Middle Dutch",
+    "dut": "Holandês", "dyu": "Dyula", "dzo": "Dzongkha", "efi": "Efik", "egy": "Egyptian",
+    "eka": "Ekajuk", "elx": "Elamite", "eng": "Inglês", "enm": "Middle English", "epo": "Esperanto",
+    "est": "Estoniano", "eus": "Basque", "ewe": "Ewe", "ewo": "Ewondo", "fan": "Fang",
+    "fao": "Feroês", "fas": "Persa", "fat": "Fanti", "fij": "Fijiano", "fil": "Filipino",
+    "fin": "Finlandês", "fiu": "Finno-Ugrian", "fon": "Fon", "fra": "Francês", "fre": "Francês",
+    "frm": "Middle French", "fro": "Old French", "frr": "Northern Frisian", "frs": "Eastern Frisian",
+    "fry": "Frisão Ocidental", "ful": "Fula", "fur": "Friulian", "gaa": "Ga", "gay": "Gayo",
+    "gba": "Gbaya", "gem": "Germanic", "geo": "Georgiano", "ger": "Alemão", "gez": "Geez",
+    "gil": "Gilbertês", "gla": "Gaélico Escocês", "gle": "Irlandês", "glg": "Galego", "glv": "Manx",
+    "gmh": "Middle High German", "goh": "Old High German", "gon": "Gondi", "gor": "Gorontalo",
+    "got": "Gothic", "grb": "Grebo", "grc": "Ancient Greek", "gre": "Grego Moderno", "grn": "Guarani",
+    "gsw": "Swiss German", "guj": "Gujarati", "gwi": "Gwich'in", "hai": "Haida", "hat": "Haitiano",
+    "hau": "Hausa", "haw": "Havaiano", "heb": "Hebraico", "her": "Herero", "hil": "Hiligaynon",
+    "him": "Himachali", "hin": "Hindi", "hit": "Hittite", "hmn": "Hmong", "hmo": "Hiri Motu",
+    "hrv": "Croata", "hsb": "Upper Sorbian", "hun": "Húngaro", "hup": "Hupa", "hye": "Armênio",
+    "iba": "Iban", "ibo": "Igbo", "ice": "Islandês", "ido": "Ido", "iii": "Sichuan Yi",
+    "ijo": "Ijo", "iku": "Inuktitut", "ile": "Interlingue", "ilo": "Iloko", "ina": "Interlingua",
+    "inc": "Indic", "ind": "Indonésio", "ine": "Indo-European", "inh": "Ingush", "ipk": "Inupiaq",
+    "ira": "Iranian", "iro": "Iroquoian", "isl": "Islandês", "ita": "Italiano", "jav": "Javanês",
+    "jbo": "Lojban", "jpn": "Japonês", "jpr": "Judeo-Persian", "jrb": "Judeo-Arabic", "kaa": "Kara-Kalpak",
+    "kab": "Kabyle", "kac": "Kachin", "kal": "Kalaallisut", "kam": "Kamba", "kan": "Kannada",
+    "kar": "Karen", "kas": "Kashmiri", "kau": "Kanuri", "kaw": "Kawi", "kaz": "Cazaque",
+    "kbd": "Kabardian", "kha": "Khasi", "khi": "Khoisan", "khm": "Khmer", "kho": "Khotanese",
+    "kik": "Kikuyu", "kin": "Kinyarwanda", "kir": "Quirguiz", "kmb": "Kimbundu", "kok": "Konkani",
+    "kom": "Komi", "kon": "Kongo", "kor": "Coreano", "kos": "Kosraean", "kpe": "Kpelle",
+    "krc": "Karachay-Balkar", "krl": "Karelian", "kro": "Kru", "kru": "Kurukh", "kua": "Kuanyama",
+    "kum": "Kumyk", "kur": "Curdo", "kut": "Kutenai", "lad": "Ladino", "lah": "Lahnda",
+    "lam": "Lamba", "lao": "Laociano", "lat": "Latim", "lav": "Letão", "lez": "Lezghian",
+    "lim": "Limburgan", "lin": "Lingala", "lit": "Lituano", "lol": "Mongo", "loz": "Lozi",
+    "ltz": "Luxemburguês", "lua": "Luba-Lulua", "lub": "Luba-Katanga", "lug": "Ganda", "lui": "Luiseno",
+    "lun": "Lunda", "luo": "Luo (Kenya and Tanzania)", "lus": "Mizo", "mac": "Macedônio",
+    "mad": "Madurese", "mag": "Magahi", "mah": "Marshallese", "mai": "Maithili", "mak": "Makasar",
+    "mal": "Malaio", "man": "Mandingo", "mao": "Maori", "map": "Austronesian", "mar": "Marathi",
+    "mas": "Masai", "may": "Malaio", "mdf": "Moksha", "mdr": "Mandar", "men": "Mende",
+    "mga": "Middle Irish", "mic": "Mi'kmaq", "min": "Minangkabau", "mis": "Miscellaneous languages", "mkh": "Mon-Khmer",
+    "mlg": "Malagasy", "mlt": "Maltês", "mnc": "Manchu", "mni": "Manipuri", "mno": "Manobo",
+    "moh": "Mohawk", "mon": "Mongol", "mos": "Mossi", "mul": "Multiple languages", "mun": "Munda",
+    "mus": "Creek", "mwl": "Mirandese", "mwr": "Marwari", "myn": "Mayan", "myv": "Erzya",
+    "nah": "Nahuatl", "nai": "North American Indian", "nap": "Neapolitan", "nau": "Nauru", "nav": "Navajo",
+    "nbl": "Ndebele, South", "nde": "Ndebele, North", "ndo": "Ndonga", "nds": "Low German",
+    "nep": "Nepali", "new": "Newari", "nia": "Nias", "nic": "Niger-Kordofanian", "niu": "Niuean",
+    "nno": "Norwegian Nynorsk", "nob": "Norwegian Bokmål", "nog": "Nogai", "non": "Old Norse", "nor": "Norueguês",
+    "nqo": "N'Ko", "nso": "Northern Sotho", "nub": "Nubian", "nya": "Chichewa", "nym": "Nyamwezi",
+    "nyn": "Nyankole", "nyo": "Nyoro", "nzi": "Nzima", "oci": "Occitan (post 1500)", "oji": "Ojibwa",
+    "ori": "Oriya", "orm": "Oromo", "osa": "Osage", "oss": "Ossetian", "ota": "Turkish, Ottoman",
+    "oto": "Otomian", "paa": "Papuan", "pag": "Pangasinan", "pal": "Pahlavi", "pam": "Pampanga",
+    "pan": "Panjabi", "pap": "Papiamento", "pau": "Palauan", "peo": "Old Persian", "per": "Persa",
+    "phi": "Philippine", "phn": "Phoenician", "pli": "Pali", "pol": "Polonês", "pon": "Pohnpeian",
+    "por": "Português", "pra": "Prakrit languages", "pro": "Old Provençal", "pus": "Pashto",
+    "que": "Quechua", "raj": "Rajasthani", "rap": "Rapanui", "rar": "Rarotongan", "roa": "Romance",
+    "roh": "Romansh", "rom": "Romani", "rum": "Romeno", "run": "Rundi", "rup": "Aromanian",
+    "rus": "Russo", "sad": "Sandawe", "sag": "Sango", "sah": "Yakut", "sai": "South American Indian",
+    "sal": "Salishan", "sam": "Samaritan Aramaic", "san": "Sânscrito", "sas": "Sasak", "sat": "Santali",
+    "scn": "Sicilian", "sco": "Scots", "sel": "Selkup", "sem": "Semitic", "sga": "Old Irish",
+    "sgn": "Sign Languages", "shn": "Shan", "sid": "Sidamo", "sin": "Sinhala", "sio": "Siouan",
+    "sit": "Sino-Tibetan", "sla": "Slavic", "slk": "Eslovaco", "slv": "Esloveno", "smi": "Sami",
+    "smj": "Lule Sami", "smn": "Inari Sami", "smo": "Samoan", "sms": "Skolt Sami", "sna": "Shona",
+    "snd": "Sindhi", "snk": "Soninke", "sog": "Sogdian", "som": "Somali", "son": "Songhai",
+    "sot": "Sotho, Southern", "spa": "Espanhol", "sqi": "Albanês", "srd": "Sardo", "srn": "Sranan Tongo",
+    "srp": "Sérvio", "srr": "Serer", "ssa": "Nilo-Saharan", "ssw": "Swati", "suk": "Sukuma",
+    "sun": "Sundanês", "sus": "Susu", "sux": "Sumerian", "swa": "Swahili", "swe": "Sueco",
+    "syc": "Classical Syriac", "syr": "Syriac", "tah": "Tahitian", "tai": "Tai", "tam": "Tâmil",
+    "tat": "Tatar", "tel": "Telugu", "tem": "Temne", "ter": "Tereno", "tet": "Tetum",
+    "tgk": "Tajik", "tgl": "Tagalog", "tha": "Tailandês", "tib": "Tibetano", "tig": "Tigre",
+    "tir": "Tigrinya", "tiv": "Tiv", "tkl": "Tokelau", "tlh": "Klingon", "tli": "Tlingit",
+    "tmh": "Tamashek", "tog": "Tonga (Nyasa)", "ton": "Tongan", "tpi": "Tok Pisin", "tsi": "Tsimshian",
+    "tsn": "Tswana", "tso": "Tsonga", "tuk": "Turcomano", "tum": "Tumbuka", "tup": "Tupi",
+    "tur": "Turco", "tut": "Altaic", "tvl": "Tuvalu", "twi": "Twi", "tyv": "Tuvinian",
+    "udm": "Udmurt", "uga": "Ugaritic", "uig": "Uighur", "ukr": "Ucraniano", "umb": "Umbundu",
+    "und": "Undetermined", "urd": "Urdu", "uzb": "Uzbeque", "vai": "Vai", "ven": "Venda",
+    "vie": "Vietnamita", "vol": "Volapük", "vot": "Votic", "wak": "Wakashan", "wal": "Wolaytta",
+    "war": "Waray", "was": "Washo", "wel": "Galês", "wen": "Sorbian", "wln": "Walloon",
+    "wol": "Wolof", "xal": "Kalmyk", "xho": "Xhosa", "yao": "Yao", "yap": "Yapese",
+    "yid": "Yiddish", "yor": "Yoruba", "ypk": "Yupik", "zap": "Zapotec", "zbl": "Blissymbols",
+    "zen": "Zenaga", "zha": "Zhuang", "zhi": "Zhi", "zho": "Chinês", "znd": "Zande",
+    "zul": "Zulu", "zun": "Zuni", "zxx": "No linguistic content", "zza": "Zaza"
+}
+
+def get_language_name(code: str) -> str:
+    """Retorna o nome amigável do idioma baseado no código ISO."""
+    if not code:
+        return "Desconhecido"
+    return LANGUAGE_NAMES.get(code.lower(), code)
 
 class ConfigManager:
     """Gerencia o salvamento e carregamento de configurações."""
@@ -47,7 +157,8 @@ class ConfigManager:
             "preserve_metadata": True,
             "custom_bitrate": "",
             "custom_preset": "p6",
-            "custom_presets": [] # Lista para guardar presets do usuário
+            "custom_presets": [],
+            "copy_audio": False
         }
         self.load()
 
@@ -271,7 +382,8 @@ class ProbeWorker(QThread):
                         index = stream.get('index')
                         codec = stream.get('codec_name', 'unk').upper()
                         tags = stream.get('tags', {})
-                        lang = tags.get('language', tags.get('title', 'Desconhecido'))
+                        lang_code = tags.get('language', tags.get('title', ''))
+                        lang = get_language_name(lang_code)
                         audio_streams.append({'index': index, 'title': f"Track {index}: {lang} ({codec})"})
         except Exception as e:
             print(f"Erro no probe: {e}")
@@ -402,6 +514,129 @@ class ModernButton(QPushButton):
         """)
         self.setCursor(Qt.PointingHandCursor)
 
+class BatchSubtitleDialog(QDialog):
+    """Diálogo para selecionar legenda individual em modo de lote."""
+
+    def __init__(self, parent=None, video_path="", detected_sub="", batch_index=0, batch_total=1):
+        super().__init__(parent)
+        self.video_path = video_path
+        self.detected_sub = detected_sub
+        self.batch_index = batch_index
+        self.batch_total = batch_total
+        self.selected_subtitle = ""
+        self.action = "use_detected"
+        self.skip_all_flag = False
+        self.setup_ui()
+
+    def setup_ui(self):
+        self.setWindowTitle(f"Configurar Legenda - Vídeo {self.batch_index}/{self.batch_total}")
+        self.setFixedSize(500, 320)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(15)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        video_label = QLabel(f"Vídeo: {Path(self.video_path).name}")
+        video_label.setStyleSheet("font-weight: bold; font-size: 13px;")
+        video_label.setWordWrap(True)
+        layout.addWidget(video_label)
+
+        layout.addWidget(QLabel("-" * 50))
+
+        self.radio_detected = QRadioButton("Usar legenda detectada")
+        self.radio_no_sub = QRadioButton("Sem legenda")
+        self.radio_custom = QRadioButton("Selecionar outra legenda...")
+        self.radio_skip = QRadioButton("Pular este vídeo")
+
+        if self.detected_sub and Path(self.detected_sub).exists():
+            sub_name = Path(self.detected_sub).name
+            self.lbl_detected = QLabel(f"  📄 {sub_name}")
+            self.lbl_detected.setStyleSheet("color: #4CAF50; margin-left: 25px;")
+            layout.addWidget(self.radio_detected)
+            layout.addWidget(self.lbl_detected)
+            self.radio_detected.setChecked(True)
+        else:
+            self.lbl_detected = QLabel("  📄 Nenhuma detectada")
+            self.lbl_detected.setStyleSheet("color: #AAA; margin-left: 25px;")
+            layout.addWidget(self.radio_detected)
+            layout.addWidget(self.lbl_detected)
+
+        layout.addWidget(self.radio_no_sub)
+        layout.addWidget(self.radio_custom)
+        layout.addWidget(self.radio_skip)
+
+        self.btn_browse = QPushButton("📁 Selecionar...")
+        self.btn_browse.setEnabled(False)
+        self.btn_browse.clicked.connect(self.browse_subtitle)
+        layout.addWidget(self.btn_browse)
+
+        layout.addStretch()
+
+        btn_layout = QHBoxLayout()
+
+        btn_skip_all = QPushButton("Pular Todos")
+        btn_skip_all.setStyleSheet("background-color: #FF9800; color: white; padding: 8px; border-radius: 5px;")
+        btn_skip_all.clicked.connect(self.skip_all)
+
+        btn_ok = QPushButton("Confirmar")
+        btn_ok.setStyleSheet("background-color: #4CAF50; color: white; padding: 8px; border-radius: 5px;")
+        btn_ok.clicked.connect(self.accept_selection)
+
+        btn_cancel = QPushButton("Cancelar")
+        btn_cancel.setStyleSheet("background-color: #F44336; color: white; padding: 8px; border-radius: 5px;")
+        btn_cancel.clicked.connect(self.reject)
+
+        btn_layout.addWidget(btn_skip_all)
+        btn_layout.addStretch()
+        btn_layout.addWidget(btn_ok)
+        btn_layout.addWidget(btn_cancel)
+
+        layout.addLayout(btn_layout)
+
+        self.radio_custom.toggled.connect(self.on_radio_toggled)
+
+    def on_radio_toggled(self, checked):
+        self.btn_browse.setEnabled(checked and self.radio_custom.isChecked())
+
+    def browse_subtitle(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Selecione a Legenda",
+            str(Path(self.video_path).parent),
+            "Legendas (*.srt *.ass *.ssa);;Todos os arquivos (*.*)"
+        )
+        if path:
+            self.selected_subtitle = path
+            self.lbl_detected.setText(f"  📄 {Path(path).name}")
+            self.lbl_detected.setStyleSheet("color: #4CAF50; margin-left: 25px;")
+
+    def accept_selection(self):
+        if self.radio_detected.isChecked():
+            self.action = "use_detected"
+            self.selected_subtitle = self.detected_sub
+        elif self.radio_no_sub.isChecked():
+            self.action = "no_subtitle"
+            self.selected_subtitle = ""
+        elif self.radio_custom.isChecked():
+            if not self.selected_subtitle:
+                QMessageBox.warning(self, "Aviso", "Selecione um arquivo de legenda.")
+                return
+            self.action = "select_custom"
+        elif self.radio_skip.isChecked():
+            self.action = "skip"
+
+        if self.skip_all_flag:
+            self.action = "skip_all"
+
+        self.accept()
+
+    def skip_all(self):
+        self.skip_all_flag = True
+        self.action = "skip_all"
+        self.accept()
+
+    def get_result(self):
+        return self.action, self.selected_subtitle
+
 class VideoConverterApp(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -476,6 +711,10 @@ class VideoConverterApp(QMainWindow):
         self.lbl_gpu_status = QLabel(gpu_text)
         self.lbl_gpu_status.setStyleSheet(f"color: {'#4CAF50' if self.has_nvidia else '#FFA726'}; font-size: 11px;")
         status_layout.addWidget(self.lbl_gpu_status)
+
+        self.lbl_encoder_status = QLabel("Encoder: --")
+        self.lbl_encoder_status.setStyleSheet("color: #AAA; font-size: 11px;")
+        status_layout.addWidget(self.lbl_encoder_status)
         status_layout.addStretch()
         layout.addLayout(status_layout)
         self.update_ffmpeg_status_ui()
@@ -596,6 +835,11 @@ class VideoConverterApp(QMainWindow):
         self.chk_metadata.setChecked(True)
         self.chk_metadata.setStyleSheet("color: #CCC;")
         layout.addWidget(self.chk_metadata)
+
+        self.chk_copy_audio = QCheckBox("Copiar áudio sem reencode (mais rápido)")
+        self.chk_copy_audio.setChecked(False)
+        self.chk_copy_audio.setStyleSheet("color: #CCC;")
+        layout.addWidget(self.chk_copy_audio)
 
         # Progresso
         self.progress_bar = QProgressBar()
@@ -906,12 +1150,58 @@ class VideoConverterApp(QMainWindow):
             possible_sub = Path(video_path).parent / f"{base_name}{ext}"
             if possible_sub.exists():
                 self.subtitle_path = str(possible_sub)
-                self.lbl_sub.setText(f"Legenda: {possible_sub.name}")
                 found_sub = True
                 break
-        if not found_sub:
-            self.subtitle_path = ""
-            self.lbl_sub.setText("Legenda: Nenhuma detectada")
+
+        # Dialog to confirm subtitle for this batch file
+        dlg = BatchSubtitleDialog(
+            self,
+            video_path,
+            self.subtitle_path if found_sub else "",
+            self.batch_index + 1,
+            len(self.batch_queue)
+        )
+
+        if dlg.exec():
+            action, custom_sub = dlg.get_result()
+
+            if action == "skip":
+                self.log(f"⏭️  Vídeo pulado pelo usuário")
+                self.batch_index += 1
+                QTimer.singleShot(500, self.process_batch_queue)
+                return
+            elif action == "skip_all":
+                self.log("⏭️  Lote cancelado pelo usuário (Pular Todos)")
+                self.batch_mode = False
+                self.batch_queue = []
+                self.batch_index = 0
+                self.btn_convert.setEnabled(True)
+                self.btn_cancel.setEnabled(False)
+                return
+            elif action == "select_custom":
+                self.subtitle_path = custom_sub
+                self.lbl_sub.setText(f"Legenda: {Path(custom_sub).name}")
+                self.log(f"Legenda customizada: {Path(custom_sub).name}")
+            elif action == "no_subtitle":
+                self.subtitle_path = ""
+                self.lbl_sub.setText("Legenda: Sem legenda")
+                self.log("Convertendo sem legenda")
+            else:
+                if found_sub:
+                    self.lbl_sub.setText(f"Legenda: {Path(self.subtitle_path).name}")
+                    self.log(f"Usando legenda detectada: {Path(self.subtitle_path).name}")
+                else:
+                    self.subtitle_path = ""
+                    self.lbl_sub.setText("Legenda: Nenhuma detectada")
+                    self.log("Nenhuma legenda detectada, convertendo sem legenda")
+        else:
+            self.log("❌ Lote cancelado pelo usuário")
+            self.batch_mode = False
+            self.batch_queue = []
+            self.batch_index = 0
+            self.btn_convert.setEnabled(True)
+            self.btn_cancel.setEnabled(False)
+            return
 
         self.drop_area.setText(f"Lote: {self.batch_index + 1}/{len(self.batch_queue)}\n{Path(video_path).name}")
         self.btn_open_folder.setEnabled(True)
@@ -929,7 +1219,9 @@ class VideoConverterApp(QMainWindow):
         self.progress_bar.setValue(0)
         self.txt_log.clear()
 
-        cmd, output_path = self.build_command()
+        cmd, output_path, encoder_type, encoder_color = self.build_command()
+        self.lbl_encoder_status.setText(f"Encoder: {encoder_type}")
+        self.lbl_encoder_status.setStyleSheet(f"color: {encoder_color}; font-size: 11px;")
         self.log(f"Arquivo de saída: {Path(output_path).name}")
         self.log(f"Executando FFmpeg...")
 
@@ -976,10 +1268,16 @@ class VideoConverterApp(QMainWindow):
 
     def select_video(self):
         start_dir = self.config.data.get("last_video_dir", "")
-        path, _ = QFileDialog.getOpenFileName(self, "Selecione o Vídeo", start_dir, "Vídeos (*.mkv *.mp4 *.avi *.mov *.wmv *.flv);;Todos os arquivos (*.*)")
-        if path:
-            self.handle_file_drop(path)
-            self.config.data["last_video_dir"] = str(Path(path).parent)
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Selecione os Vídeos", start_dir,
+            "Vídeos (*.mkv *.mp4 *.avi *.mov *.wmv *.flv);;Todos os arquivos (*.*)"
+        )
+        if paths:
+            if len(paths) == 1:
+                self.handle_file_drop(paths[0])
+            else:
+                self.handle_files_drop(paths)
+            self.config.data["last_video_dir"] = str(Path(paths[0]).parent)
             self.config.save()
 
     def select_subtitle(self):
@@ -1005,6 +1303,7 @@ class VideoConverterApp(QMainWindow):
         self.chk_hw_accel.setChecked(self.config.data.get("use_hardware_accel", True) and self.has_nvidia)
         self.spin_text_size.setValue(self.config.data.get("text_size", 22))
         self.chk_metadata.setChecked(self.config.data.get("preserve_metadata", True))
+        self.chk_copy_audio.setChecked(self.config.data.get("copy_audio", False))
 
         pos = self.config.data.get("text_position", "top")
         pos_map = {"top": "Topo", "center": "Centro", "bottom": "Rodapé"}
@@ -1016,6 +1315,7 @@ class VideoConverterApp(QMainWindow):
         self.config.data["use_hardware_accel"] = self.chk_hw_accel.isChecked()
         self.config.data["text_size"] = self.spin_text_size.value()
         self.config.data["preserve_metadata"] = self.chk_metadata.isChecked()
+        self.config.data["copy_audio"] = self.chk_copy_audio.isChecked()
 
         pos_map = {"Topo": "top", "Centro": "center", "Rodapé": "bottom"}
         self.config.data["text_position"] = pos_map.get(self.combo_text_pos.currentText(), "top")
@@ -1039,7 +1339,9 @@ class VideoConverterApp(QMainWindow):
         self.log("INICIANDO CONVERSÃO")
         self.log("=" * 50)
 
-        cmd, output_path = self.build_command()
+        cmd, output_path, encoder_type, encoder_color = self.build_command()
+        self.lbl_encoder_status.setText(f"Encoder: {encoder_type}")
+        self.lbl_encoder_status.setStyleSheet(f"color: {encoder_color}; font-size: 11px;")
         self.log(f"Arquivo de saída: {Path(output_path).name}")
         self.log(f"Executando FFmpeg...")
 
@@ -1124,19 +1426,32 @@ class VideoConverterApp(QMainWindow):
         if selected_audio_index is not None: cmd.extend(["-map", f"0:{selected_audio_index}"])
         else: cmd.extend(["-map", "0:a?"])
 
-        if self.chk_hw_accel.isChecked() and self.has_nvidia: cmd.extend(["-c:v", "h264_nvenc", "-preset", preset])
-        else: cmd.extend(["-c:v", "libx264", "-preset", "medium"])
+        if self.chk_hw_accel.isChecked() and self.has_nvidia:
+            cmd.extend(["-c:v", "h264_nvenc", "-preset", preset])
+            encoder_type = "NVENC"
+            encoder_color = "#4CAF50"
+        else:
+            cmd.extend(["-c:v", "libx264", "-preset", "medium"])
+            encoder_type = "CPU"
+            encoder_color = "#AAA"
 
-        cmd.extend(["-rc", "vbr", "-b:v", b_v, "-maxrate", maxrate, "-bufsize", bufsize, "-profile:v", "high", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k"])
+        if self.chk_copy_audio.isChecked():
+            cmd.extend(["-c:a", "copy"])
+        else:
+            cmd.extend(["-c:a", "aac", "-b:a", "192k"])
+
+        cmd.extend(["-rc", "vbr", "-b:v", b_v, "-maxrate", maxrate, "-bufsize", bufsize, "-profile:v", "high", "-pix_fmt", "yuv420p"])
 
         if self.chk_metadata.isChecked(): cmd.extend(["-map_metadata", "0"])
         cmd.extend(["-movflags", "+faststart", output_name])
 
-        return cmd, output_name
+        return cmd, output_name, encoder_type, encoder_color
 
     def conversion_finished(self, code: int, output_path: str):
         self.btn_convert.setEnabled(True)
         self.btn_cancel.setEnabled(False)
+        self.lbl_encoder_status.setText("Encoder: --")
+        self.lbl_encoder_status.setStyleSheet("color: #AAA; font-size: 11px;")
         self.log("=" * 50)
         if code == 0:
             self.log("CONVERSÃO CONCLUÍDA COM SUCESSO!")
