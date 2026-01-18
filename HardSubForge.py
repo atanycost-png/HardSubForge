@@ -1,6 +1,7 @@
 import sys
 import os
 import json
+import functools
 import platform
 import re
 import shutil
@@ -10,10 +11,10 @@ import urllib.request
 from pathlib import Path
 from typing import Optional, List, Dict
 
-from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QLabel, QPushButton, QLineEdit,
-                               QComboBox, QTextEdit, QFileDialog, 
-                               QProgressBar, QMessageBox, QCheckBox, QSpinBox, 
+                               QComboBox, QTextEdit, QFileDialog,
+                               QProgressBar, QMessageBox, QCheckBox, QSpinBox,
                                QFrame, QDialog, QFormLayout, QDialogButtonBox,
                                QSystemTrayIcon, QMenu, QTabWidget, QScrollArea)
 from PySide6.QtCore import Qt, QThread, Signal, QUrl, QTimer
@@ -23,6 +24,13 @@ from PySide6.QtGui import QFont, QColor, QPalette, QDesktopServices
 
 CONFIG_FILE = "config.json"
 APP_VERSION = "2.3.0"
+
+# Regex patterns pre-compiled for performance
+TIME_PATTERN = re.compile(r'time=(\d{2}):(\d{2}):(\d{2}\.\d{2})')
+DURATION_PATTERN = re.compile(r'Duration: (\d{2}):(\d{2}):(\d{2}\.\d{2})')
+BITRATE_PATTERN = re.compile(r'(\d+)k')
+BITRATE_STRICT_PATTERN = re.compile(r'^\d+k$')
+SANITIZE_PATTERN = re.compile(r'[<>:"/\\|?*]')
 
 class ConfigManager:
     """Gerencia o salvamento e carregamento de configurações."""
@@ -59,11 +67,12 @@ class ConfigManager:
         except Exception as e:
             print(f"Erro ao salvar config: {e}")
 
+@functools.lru_cache(maxsize=1)
 def get_font_path() -> Optional[str]:
-    """Retorna o caminho para uma fonte compatível (Arial ou fallback)."""
+    """Retorna o caminho para uma fonte compatível (Arial ou fallback). Caching para evitar I/O repetitivo."""
     system = platform.system()
     paths = []
-    
+
     if system == "Windows":
         paths = [
             Path("C:/Windows/Fonts/arial.ttf"),
@@ -82,7 +91,7 @@ def get_font_path() -> Optional[str]:
             Path("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"),
             Path("/usr/share/fonts/TTF/DejaVuSans.ttf")
         ]
-    
+
     for p in paths:
         if p.exists():
             return str(p).replace("\\", "/")
@@ -107,7 +116,7 @@ def parse_bitrate(bitrate_str: str) -> int:
     """Converte string de bitrate (ex: '5000k') para valor numérico em kbps."""
     if not bitrate_str:
         return 0
-    match = re.match(r'(\d+)k', bitrate_str)
+    match = BITRATE_PATTERN.match(bitrate_str)
     if match:
         return int(match.group(1))
     return 0
@@ -122,42 +131,42 @@ def calculate_bitrate_values(bitrate_str: str, maxrate_str: str = "", bufsize_st
     Retorna tupla (bitrate, maxrate, bufsize) formatados como strings.
     """
     bitrate = parse_bitrate(bitrate_str) or 3000
-    
+
     if not maxrate_str:
         maxrate = int(bitrate * 1.2)
     else:
         maxrate = parse_bitrate(maxrate_str) or bitrate
-    
+
     if not bufsize_str:
         bufsize = int(bitrate * 2)
     else:
         bufsize = parse_bitrate(bufsize_str) or int(bitrate * 2)
-    
+
     return format_bitrate(bitrate), format_bitrate(maxrate), format_bitrate(bufsize)
 
 def get_ffmpeg_binary() -> Optional[str]:
     script_dir = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
-    
+
     if platform.system() == "Windows":
         local_bin = script_dir / "ffmpeg.exe"
     else:
         local_bin = script_dir / "ffmpeg"
-    
+
     if local_bin.exists():
         return str(local_bin)
-    
+
     system_bin = shutil.which("ffmpeg")
     if system_bin:
         return system_bin
-    
+
     return None
 
 def check_nvidia_gpu() -> bool:
     try:
         creationflags = subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
         result = subprocess.run(
-            ["nvidia-smi"], 
-            capture_output=True, 
+            ["nvidia-smi"],
+            capture_output=True,
             timeout=3,
             creationflags=creationflags
         )
@@ -165,13 +174,25 @@ def check_nvidia_gpu() -> bool:
     except:
         return False
 
+@functools.lru_cache(maxsize=1)
+def get_ffprobe_binary(ffmpeg_bin_path: Optional[str]) -> Optional[str]:
+    """Resolve o caminho do ffprobe baseando-se no binário do ffmpeg ou PATH."""
+    if not ffmpeg_bin_path:
+        return shutil.which("ffprobe")
+
+    ffprobe_bin = ffmpeg_bin_path.replace("ffmpeg", "ffprobe")
+    if Path(ffprobe_bin).exists():
+        return ffprobe_bin
+
+    return shutil.which("ffprobe")
+
 # --- THREADS ---
 
 class FFmpegWorker(QThread):
     progress_signal = Signal(int)
     log_signal = Signal(str)
     finished_signal = Signal(int, str)
-    
+
     def __init__(self, cmd: List[str], output_path: str):
         super().__init__()
         self.cmd = cmd
@@ -181,32 +202,30 @@ class FFmpegWorker(QThread):
 
     def run(self):
         try:
-            time_pattern = re.compile(r"time=(\d{2}):(\d{2}):(\d{2}\.\d{2})")
-            duration_pattern = re.compile(r"Duration: (\d{2}):(\d{2}):(\d{2}\.\d{2})")
-            
             total_duration = 0
             creation_flags = 0
-            
+
             if platform.system() == "Windows":
                 creation_flags = subprocess.CREATE_NO_WINDOW
 
             self.process = subprocess.Popen(
-                self.cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, 
+                self.cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, encoding='utf-8', errors='replace', creationflags=creation_flags
             )
 
             for line in self.process.stdout:
                 if self._is_cancelled: break
                 self.log_signal.emit(line.strip())
-                
+
                 if total_duration == 0:
-                    d_match = duration_pattern.search(line)
+                    d_match = DURATION_PATTERN.search(line)
                     if d_match:
                         h, m, s = map(float, d_match.groups())
                         total_duration = h * 3600 + m * 60 + s
+                        continue # Skip time search for the same line
 
                 if total_duration > 0:
-                    t_match = time_pattern.search(line)
+                    t_match = TIME_PATTERN.search(line)
                     if t_match:
                         h, m, s = map(float, t_match.groups())
                         current_time = h * 3600 + m * 60 + s
@@ -234,9 +253,7 @@ class ProbeWorker(QThread):
 
     def __init__(self, ffmpeg_bin_path: str, video_path: str):
         super().__init__()
-        self.ffprobe_bin = ffmpeg_bin_path.replace("ffmpeg", "ffprobe")
-        if not Path(self.ffprobe_bin).exists():
-            self.ffprobe_bin = shutil.which("ffprobe")
+        self.ffprobe_bin = get_ffprobe_binary(ffmpeg_bin_path)
         self.video_path = video_path
 
     def run(self):
@@ -272,23 +289,23 @@ class AddPresetDialog(QDialog):
 
     def setup_ui(self):
         layout = QFormLayout(self)
-        
+
         self.input_name = QLineEdit()
         self.input_name.setPlaceholderText("Ex: YouTube 1080p")
         layout.addRow("Nome do Preset:", self.input_name)
-        
+
         self.input_bitrate = QLineEdit()
         self.input_bitrate.setPlaceholderText("Ex: 5000k")
         layout.addRow("Bitrate (-b:v):", self.input_bitrate)
-        
+
         self.input_maxrate = QLineEdit()
         self.input_maxrate.setPlaceholderText("Ex: 5200k")
         layout.addRow("Maxrate:", self.input_maxrate)
-        
+
         self.input_bufsize = QLineEdit()
         self.input_bufsize.setPlaceholderText("Ex: 9000k")
         layout.addRow("Bufsize:", self.input_bufsize)
-        
+
         self.combo_preset = QComboBox()
         self.combo_preset.addItems(["p1 (Mais Rápido)", "p4 (Equilibrado)", "p6 (Lento/Melhor)"])
         layout.addRow("Preset NVENC:", self.combo_preset)
@@ -302,26 +319,25 @@ class AddPresetDialog(QDialog):
         if not self.input_name.text() or not self.input_bitrate.text():
             QMessageBox.warning(self, "Atenção", "Preencha pelo menos o Nome e o Bitrate.")
             return
-        
+
         # Valida formato do bitrate
-        bitrate_pattern = re.compile(r'^\d+k$')
-        if not bitrate_pattern.match(self.input_bitrate.text()):
+        if not BITRATE_STRICT_PATTERN.match(self.input_bitrate.text()):
             QMessageBox.warning(self, "Atenção", "O Bitrate deve seguir o formato 'XXXXk' (ex: 5000k, 3000k, etc)")
             return
-        
+
         # Valida formato do maxrate se fornecido
-        if self.input_maxrate.text() and not bitrate_pattern.match(self.input_maxrate.text()):
+        if self.input_maxrate.text() and not BITRATE_STRICT_PATTERN.match(self.input_maxrate.text()):
             QMessageBox.warning(self, "Atenção", "O Maxrate deve seguir o formato 'XXXXk' (ex: 5200k)")
             return
-        
+
         # Valida formato do bufsize se fornecido
-        if self.input_bufsize.text() and not bitrate_pattern.match(self.input_bufsize.text()):
+        if self.input_bufsize.text() and not BITRATE_STRICT_PATTERN.match(self.input_bufsize.text()):
             QMessageBox.warning(self, "Atenção", "O Bufsize deve seguir o formato 'XXXXk' (ex: 9000k)")
             return
-        
+
         # Extrai apenas o código do preset (p1, p4, etc)
         preset_code = self.combo_preset.currentText().split()[0]
-        
+
         self.preset_data = {
             "name": self.input_name.text(),
             "bitrate": self.input_bitrate.text(),
@@ -369,7 +385,7 @@ class DropArea(QLabel):
             file_path = url.toLocalFile()
             if file_path.lower().endswith(('.mkv', '.mp4', '.avi', '.mov', '.wmv', '.flv')):
                 video_files.append(file_path)
-        if video_files: 
+        if video_files:
             self.files_dropped.emit(video_files)
 
     def mousePressEvent(self, event):
@@ -392,7 +408,7 @@ class VideoConverterApp(QMainWindow):
         self.setWindowTitle(f"HardSub Converter Pro v{APP_VERSION}")
         self.resize(700, 880)
         self.apply_dark_theme()
-        
+
         self.config = ConfigManager()
         self.video_path = ""
         self.subtitle_path = ""
@@ -402,10 +418,10 @@ class VideoConverterApp(QMainWindow):
         self.batch_queue = []
         self.batch_index = 0
         self.batch_mode = False
-        
+
         # Setup system tray for notifications
         self.setup_system_tray()
-        
+
         self.setup_ui()
         self.load_settings()
         if not self.ffmpeg_bin:
@@ -414,13 +430,13 @@ class VideoConverterApp(QMainWindow):
     def setup_system_tray(self):
         """Configura o ícone da bandeja do sistema para notificações."""
         self.tray_icon = QSystemTrayIcon(self)
-        
+
         # Tenta carregar ícone do app ou usa ícone padrão
         icon_path = Path(__file__).parent / "icon.ico"
         if icon_path.exists():
             from PySide6.QtGui import QIcon
             self.tray_icon.setIcon(QIcon(str(icon_path)))
-        
+
         self.tray_icon.show()
 
     def apply_dark_theme(self):
@@ -449,13 +465,13 @@ class VideoConverterApp(QMainWindow):
         title.setStyleSheet("font-size: 24px; font-weight: bold; color: #4A90E2;")
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
-        
+
         # Status
         status_layout = QHBoxLayout()
         self.lbl_ffmpeg_status = QLabel("FFmpeg: Verificando...")
         self.lbl_ffmpeg_status.setStyleSheet("color: gray; font-size: 11px;")
         status_layout.addWidget(self.lbl_ffmpeg_status)
-        
+
         gpu_text = "GPU: NVIDIA Detectada" if self.has_nvidia else "GPU: Não detectada"
         self.lbl_gpu_status = QLabel(gpu_text)
         self.lbl_gpu_status.setStyleSheet(f"color: {'#4CAF50' if self.has_nvidia else '#FFA726'}; font-size: 11px;")
@@ -474,12 +490,12 @@ class VideoConverterApp(QMainWindow):
         self.lbl_sub = QLabel("Legenda: Nenhuma detectada")
         self.lbl_sub.setStyleSheet("color: #AAA;")
         subtitle_layout.addWidget(self.lbl_sub)
-        
+
         btn_sub = QPushButton("Alterar Legenda")
         btn_sub.setStyleSheet("background-color: transparent; border: 1px solid #555; color: #CCC; padding: 5px;")
         btn_sub.clicked.connect(self.select_subtitle)
         subtitle_layout.addWidget(btn_sub)
-        
+
         btn_clear_sub = QPushButton("Remover")
         btn_clear_sub.setStyleSheet("background-color: transparent; border: 1px solid #555; color: #CCC; padding: 5px;")
         btn_clear_sub.clicked.connect(self.clear_subtitle)
@@ -505,7 +521,7 @@ class VideoConverterApp(QMainWindow):
         self.entry_text.setPlaceholderText("Digite o texto aqui...")
         self.entry_text.setStyleSheet("background-color: #2B2B2B; color: white; padding: 8px; border-radius: 6px;")
         text_layout.addWidget(self.entry_text)
-        
+
         self.spin_text_size = QSpinBox()
         self.spin_text_size.setRange(10, 72)
         self.spin_text_size.setValue(22)
@@ -513,7 +529,7 @@ class VideoConverterApp(QMainWindow):
         self.spin_text_size.setStyleSheet("background-color: #2B2B2B; color: white; padding: 5px;")
         text_layout.addWidget(self.spin_text_size)
         layout.addLayout(text_layout)
-        
+
         pos_layout = QHBoxLayout()
         pos_layout.addWidget(QLabel("Posição:"))
         self.combo_text_pos = QComboBox()
@@ -531,42 +547,42 @@ class VideoConverterApp(QMainWindow):
         self.combo_quality.setStyleSheet("background-color: #2B2B2B; color: white; padding: 8px;")
         self.combo_quality.currentIndexChanged.connect(self.on_quality_changed)
         quality_layout.addWidget(self.combo_quality)
-        
+
         btn_add_preset = QPushButton("+")
         btn_add_preset.setFixedSize(30, 30)
         btn_add_preset.setToolTip("Criar novo Preset")
         btn_add_preset.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold; border-radius: 5px; border: none;")
         btn_add_preset.clicked.connect(self.open_add_preset_dialog)
         quality_layout.addWidget(btn_add_preset)
-        
+
         btn_delete_preset = QPushButton("-")
         btn_delete_preset.setFixedSize(30, 30)
         btn_delete_preset.setToolTip("Deletar Preset Selecionado")
         btn_delete_preset.setStyleSheet("background-color: #D32F2F; color: white; font-weight: bold; border-radius: 5px; border: none;")
         btn_delete_preset.clicked.connect(self.delete_preset)
         quality_layout.addWidget(btn_delete_preset)
-        
+
         layout.addLayout(quality_layout)
-        
+
         # Frame Custom
         self.frame_custom_quality = QFrame()
         self.frame_custom_quality.setFrameShape(QFrame.StyledPanel)
         self.frame_custom_quality.setStyleSheet("background-color: #2A2A2A; border-radius: 5px; padding: 5px;")
         self.frame_custom_quality.setVisible(False)
-        
+
         cq_layout = QHBoxLayout(self.frame_custom_quality)
         cq_layout.addWidget(QLabel("Bitrate:"))
         self.entry_custom_bitrate = QLineEdit()
         self.entry_custom_bitrate.setPlaceholderText("ex: 5000k")
         self.entry_custom_bitrate.setStyleSheet("background-color: #333; color: white; padding: 5px;")
         cq_layout.addWidget(self.entry_custom_bitrate)
-        
+
         cq_layout.addWidget(QLabel("Preset:"))
         self.combo_preset = QComboBox()
         self.combo_preset.addItems(["p1 (Mais Rápido)", "p4 (Equilibrado)", "p6 (Lento/Melhor)"])
         self.combo_preset.setStyleSheet("background-color: #333; color: white; padding: 5px;")
         cq_layout.addWidget(self.combo_preset)
-        
+
         layout.addWidget(self.frame_custom_quality)
 
         # Checkboxes
@@ -575,7 +591,7 @@ class VideoConverterApp(QMainWindow):
         self.chk_hw_accel.setEnabled(self.has_nvidia)
         self.chk_hw_accel.setStyleSheet("color: #CCC;")
         layout.addWidget(self.chk_hw_accel)
-        
+
         self.chk_metadata = QCheckBox("Preservar metadados do vídeo original")
         self.chk_metadata.setChecked(True)
         self.chk_metadata.setStyleSheet("color: #CCC;")
@@ -592,14 +608,14 @@ class VideoConverterApp(QMainWindow):
         self.btn_convert.clicked.connect(self.start_conversion)
         self.btn_convert.setFixedHeight(45)
         btn_layout.addWidget(self.btn_convert)
-        
+
         self.btn_cancel = ModernButton("CANCELAR", "#D32F2F", "#B71C1C")
         self.btn_cancel.clicked.connect(self.cancel_conversion)
         self.btn_cancel.setFixedHeight(45)
         self.btn_cancel.setEnabled(False)
         btn_layout.addWidget(self.btn_cancel)
         layout.addLayout(btn_layout)
-        
+
         self.btn_open_folder = QPushButton("Abrir Pasta do Arquivo")
         self.btn_open_folder.setStyleSheet("background-color: transparent; border: 1px solid #555; color: #CCC; padding: 8px;")
         self.btn_open_folder.clicked.connect(self.open_output_folder)
@@ -627,17 +643,17 @@ class VideoConverterApp(QMainWindow):
         """Carrega os padrões e os presets do usuário no ComboBox."""
         self.combo_quality.blockSignals(True) # Evita disparar on_changed durante o carregamento
         self.combo_quality.clear()
-        
+
         # Padrões Fixos
         self.combo_quality.addItem("Alta (4200k)", "high")
         self.combo_quality.addItem("Padrão (2800k)", "standard")
-        
+
         # Presets do Usuário
         for p in self.config.data.get('custom_presets', []):
             self.combo_quality.addItem(f"⚙️ {p['name']}", p)
-            
+
         self.combo_quality.addItem("Personalizada (Manual)", "manual")
-        
+
         # Restaura seleção salva
         saved_quality = self.config.data.get("last_quality", "Alta (4200k)")
         index = self.combo_quality.findText(saved_quality)
@@ -645,7 +661,7 @@ class VideoConverterApp(QMainWindow):
             self.combo_quality.setCurrentIndex(index)
         else:
             self.combo_quality.setCurrentIndex(0)
-            
+
         self.combo_quality.blockSignals(False)
         self.toggle_custom_quality_ui()
 
@@ -658,7 +674,7 @@ class VideoConverterApp(QMainWindow):
                 self.config.data['custom_presets'].append(new_preset)
                 self.config.save()
                 self.load_presets_to_combo()
-                
+
                 # Seleciona o novo preset criado automaticamente
                 name = f"⚙️ {new_preset['name']}"
                 self.combo_quality.setCurrentText(name)
@@ -668,7 +684,7 @@ class VideoConverterApp(QMainWindow):
         """Ao mudar a qualidade, atualiza os campos customizados se for um preset salvo."""
         mode = self.combo_quality.currentText()
         data = self.combo_quality.currentData()
-        
+
         # Se for um objeto de preset (dicionário), preenche os campos
         if isinstance(data, dict):
             self.frame_custom_quality.setVisible(True)
@@ -687,20 +703,20 @@ class VideoConverterApp(QMainWindow):
         """Deleta o preset customizado selecionado."""
         mode = self.combo_quality.currentText()
         data = self.combo_quality.currentData()
-        
+
         # Só permite deletar presets customizados (que são objetos dict)
         if not isinstance(data, dict):
             QMessageBox.information(self, "Info", "Apenas presets customizados podem ser deletados.\nUse o botão '+' para criar novos presets.")
             return
-        
+
         preset_name = data.get('name', 'Preset')
         reply = QMessageBox.question(
-            self, 
-            "Deletar Preset", 
+            self,
+            "Deletar Preset",
             f"Deseja realmente deletar o preset '{preset_name}'?",
             QMessageBox.Yes | QMessageBox.No
         )
-        
+
         if reply == QMessageBox.Yes:
             # Remove o preset da lista
             custom_presets = self.config.data.get('custom_presets', [])
@@ -708,7 +724,7 @@ class VideoConverterApp(QMainWindow):
                 if p.get('name') == preset_name:
                     custom_presets.pop(i)
                     break
-            
+
             self.config.save()
             self.load_presets_to_combo()
             self.log(f"Preset '{preset_name}' deletado com sucesso")
@@ -738,7 +754,7 @@ class VideoConverterApp(QMainWindow):
         url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
         dest_zip = Path("ffmpeg_temp.zip")
         temp_extract_dir = Path("ffmpeg_temp_extract")
-        
+
         try:
             def report_progress(block_num, block_size, total_size):
                 if total_size > 0:
@@ -746,37 +762,37 @@ class VideoConverterApp(QMainWindow):
                     percent = min(int(downloaded / total_size * 100), 100)
                     self.progress_bar.setValue(percent)
                     self.log(f"Baixando FFmpeg... {percent}%")
-            
+
             urllib.request.urlretrieve(url, str(dest_zip), reporthook=report_progress)
             self.log("Download concluído. Extraindo arquivos...")
             import zipfile
-            
+
             # Limpa diretório temporário se existir
             if temp_extract_dir.exists():
                 shutil.rmtree(temp_extract_dir)
             temp_extract_dir.mkdir()
-            
+
             with zipfile.ZipFile(dest_zip, 'r') as zip_ref:
                 zip_ref.extractall(temp_extract_dir)
-            
+
             # Encontra e copia ffmpeg.exe e ffprobe.exe
             script_dir = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
             copied_files = []
-            
+
             for exe_file in temp_extract_dir.rglob("ffmpeg.exe"):
                 shutil.copy2(exe_file, script_dir / "ffmpeg.exe")
                 copied_files.append("ffmpeg.exe")
                 break
-            
+
             for exe_file in temp_extract_dir.rglob("ffprobe.exe"):
                 shutil.copy2(exe_file, script_dir / "ffprobe.exe")
                 copied_files.append("ffprobe.exe")
                 break
-            
+
             # Limpa arquivos temporários
             dest_zip.unlink()
             shutil.rmtree(temp_extract_dir)
-            
+
             if copied_files:
                 self.log(f"FFmpeg instalado com sucesso! Arquivos: {', '.join(copied_files)}")
                 self.ffmpeg_bin = get_ffmpeg_binary()
@@ -785,7 +801,7 @@ class VideoConverterApp(QMainWindow):
                 QMessageBox.information(self, "Sucesso", "FFmpeg instalado com sucesso!")
             else:
                 raise Exception("Arquivos ffmpeg.exe/ffprobe.exe não encontrados no pacote baixado")
-                
+
         except Exception as e:
             self.log(f"Erro no download: {e}")
             # Limpa arquivos temporários em caso de erro
@@ -809,7 +825,7 @@ class VideoConverterApp(QMainWindow):
         if not os.path.exists(path): return QMessageBox.warning(self, "Erro", "Arquivo não encontrado!")
         self.video_path = path
         base_name = Path(path).stem
-        
+
         # Legenda
         found_sub = False
         for ext in ['.srt', '.ass', '.ssa']:
@@ -822,18 +838,18 @@ class VideoConverterApp(QMainWindow):
         if not found_sub:
             self.subtitle_path = ""
             self.lbl_sub.setText("Legenda: Nenhuma detectada")
-        
+
         self.log(f"Vídeo carregado: {Path(path).name}")
         self.drop_area.setText(f"Vídeo Selecionado:\n{Path(path).name}")
         self.btn_open_folder.setEnabled(True)
-        
+
         self.analyze_audio_tracks()
-    
+
     def handle_files_drop(self, files: list):
         """Lida com múltiplos arquivos dropados."""
         if len(files) == 0:
             return
-        
+
         if len(files) == 1:
             # Single file mode
             self.handle_file_drop(files[0])
@@ -854,7 +870,7 @@ class VideoConverterApp(QMainWindow):
             else:
                 # Just load first file
                 self.handle_file_drop(files[0])
-    
+
     def process_batch_queue(self):
         """Processa a fila de conversão em lote."""
         if self.batch_index >= len(self.batch_queue):
@@ -873,17 +889,17 @@ class VideoConverterApp(QMainWindow):
             self.btn_convert.setEnabled(True)
             self.btn_cancel.setEnabled(False)
             return
-        
+
         # Load next file
         video_path = self.batch_queue[self.batch_index]
         self.log(f"\n{'='*60}")
         self.log(f"Arquivo {self.batch_index + 1}/{len(self.batch_queue)}: {Path(video_path).name}")
         self.log(f"{'='*60}")
-        
+
         # Auto-load file without prompt
         self.video_path = video_path
         base_name = Path(video_path).stem
-        
+
         # Auto-detect subtitle
         found_sub = False
         for ext in ['.srt', '.ass', '.ssa']:
@@ -896,10 +912,10 @@ class VideoConverterApp(QMainWindow):
         if not found_sub:
             self.subtitle_path = ""
             self.lbl_sub.setText("Legenda: Nenhuma detectada")
-        
+
         self.drop_area.setText(f"Lote: {self.batch_index + 1}/{len(self.batch_queue)}\n{Path(video_path).name}")
         self.btn_open_folder.setEnabled(True)
-        
+
         # Start conversion automatically
         self.start_batch_conversion()
 
@@ -908,15 +924,15 @@ class VideoConverterApp(QMainWindow):
         if not self.ffmpeg_bin:
             QMessageBox.critical(self, "Erro", "FFmpeg não está configurado!")
             return
-        
+
         self.save_current_settings()
         self.progress_bar.setValue(0)
         self.txt_log.clear()
-        
+
         cmd, output_path = self.build_command()
         self.log(f"Arquivo de saída: {Path(output_path).name}")
         self.log(f"Executando FFmpeg...")
-        
+
         self.worker = FFmpegWorker(cmd, output_path)
         self.worker.progress_signal.connect(self.progress_bar.setValue)
         self.worker.log_signal.connect(self.log)
@@ -933,7 +949,7 @@ class VideoConverterApp(QMainWindow):
                 self.log(f"  Tamanho: {size_mb:.2f} MB")
         else:
             self.log(f"✗ FALHA NA CONVERSÃO (Código: {code})")
-        
+
         # Move to next file
         self.batch_index += 1
         QTimer.singleShot(1000, self.process_batch_queue)
@@ -989,7 +1005,7 @@ class VideoConverterApp(QMainWindow):
         self.chk_hw_accel.setChecked(self.config.data.get("use_hardware_accel", True) and self.has_nvidia)
         self.spin_text_size.setValue(self.config.data.get("text_size", 22))
         self.chk_metadata.setChecked(self.config.data.get("preserve_metadata", True))
-        
+
         pos = self.config.data.get("text_position", "top")
         pos_map = {"top": "Topo", "center": "Centro", "bottom": "Rodapé"}
         self.combo_text_pos.setCurrentText(pos_map.get(pos, "Topo"))
@@ -1000,7 +1016,7 @@ class VideoConverterApp(QMainWindow):
         self.config.data["use_hardware_accel"] = self.chk_hw_accel.isChecked()
         self.config.data["text_size"] = self.spin_text_size.value()
         self.config.data["preserve_metadata"] = self.chk_metadata.isChecked()
-        
+
         pos_map = {"Topo": "top", "Centro": "center", "Rodapé": "bottom"}
         self.config.data["text_position"] = pos_map.get(self.combo_text_pos.currentText(), "top")
         self.config.save()
@@ -1022,11 +1038,11 @@ class VideoConverterApp(QMainWindow):
         self.log("=" * 50)
         self.log("INICIANDO CONVERSÃO")
         self.log("=" * 50)
-        
+
         cmd, output_path = self.build_command()
         self.log(f"Arquivo de saída: {Path(output_path).name}")
         self.log(f"Executando FFmpeg...")
-        
+
         self.worker = FFmpegWorker(cmd, output_path)
         self.worker.progress_signal.connect(self.progress_bar.setValue)
         self.worker.log_signal.connect(self.log)
@@ -1044,7 +1060,7 @@ class VideoConverterApp(QMainWindow):
         # Determina os valores baseados na seleção atual
         mode = self.combo_quality.currentText()
         data = self.combo_quality.currentData()
-        
+
         if isinstance(data, dict):
             # É um preset customizado carregado
             b_v = data.get('bitrate')
@@ -1058,7 +1074,7 @@ class VideoConverterApp(QMainWindow):
             b_v = self.entry_custom_bitrate.text() if self.entry_custom_bitrate.text() else "3000k"
             # Usa a função auxiliar para calcular valores automaticamente
             b_v, maxrate, bufsize = calculate_bitrate_values(b_v)
-            
+
             preset_text = self.combo_preset.currentText()
             preset = preset_text.split()[0]
         elif "Alta" in mode:
@@ -1069,24 +1085,24 @@ class VideoConverterApp(QMainWindow):
             preset = "p6"
 
         text = self.entry_text.text()
-        
-        # Sanitiza o nome do arquivo de saída
-        stem = re.sub(r'[<>:"/\\|?*]', '_', Path(self.video_path).stem)
+
+        # Sanitiza o nome do arquivo de saída usando regex pré-compilado
+        stem = SANITIZE_PATTERN.sub('_', Path(self.video_path).stem)
         output_name = str(Path(self.video_path).parent / f"{stem}@converted.mp4")
 
         cmd = [self.ffmpeg_bin, "-y", "-err_detect", "ignore_err", "-fflags", "+genpts"]
-        
+
         if self.chk_hw_accel.isChecked() and self.has_nvidia: cmd.extend(["-hwaccel", "cuda"])
         cmd.extend(["-i", self.video_path])
 
         filter_parts = []
         font = get_font_path()
-        
+
         if text:
             safe_text = escape_filter_text(text)
             pos_map = {"Topo": "y=20", "Centro": "y=(h-text_h)/2", "Rodapé": "y=h-text_h-20"}
             y_pos = pos_map.get(self.combo_text_pos.currentText(), "y=20")
-            
+
             if font:
                 safe_font = escape_path_for_filter(font)
                 drawtext = (f"drawtext=fontfile='{safe_font}':text='{safe_text}':fontcolor=white@0.9:fontsize={self.spin_text_size.value()}:box=1:boxcolor=black@0.4:boxborderw=10:x=(w-text_w)/2:{y_pos}")
@@ -1107,15 +1123,15 @@ class VideoConverterApp(QMainWindow):
         selected_audio_index = self.combo_audio.currentData()
         if selected_audio_index is not None: cmd.extend(["-map", f"0:{selected_audio_index}"])
         else: cmd.extend(["-map", "0:a?"])
-        
+
         if self.chk_hw_accel.isChecked() and self.has_nvidia: cmd.extend(["-c:v", "h264_nvenc", "-preset", preset])
         else: cmd.extend(["-c:v", "libx264", "-preset", "medium"])
-        
+
         cmd.extend(["-rc", "vbr", "-b:v", b_v, "-maxrate", maxrate, "-bufsize", bufsize, "-profile:v", "high", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k"])
-        
+
         if self.chk_metadata.isChecked(): cmd.extend(["-map_metadata", "0"])
         cmd.extend(["-movflags", "+faststart", output_name])
-        
+
         return cmd, output_name
 
     def conversion_finished(self, code: int, output_path: str):
@@ -1128,7 +1144,7 @@ class VideoConverterApp(QMainWindow):
             if Path(output_path).exists():
                 size_mb = Path(output_path).stat().st_size / (1024 * 1024)
                 self.log(f"Tamanho do arquivo: {size_mb:.2f} MB")
-            
+
             # System tray notification
             self.tray_icon.showMessage(
                 "HardSub Converter Pro",
@@ -1136,9 +1152,9 @@ class VideoConverterApp(QMainWindow):
                 QSystemTrayIcon.Information,
                 5000
             )
-            
+
             QMessageBox.information(self, "Sucesso", f"Conversão finalizada!\n\nArquivo: {Path(output_path).name}")
-        elif code == -2: 
+        elif code == -2:
             self.log("CONVERSÃO CANCELADA PELO USUÁRIO")
             self.tray_icon.showMessage(
                 "HardSub Converter Pro",
