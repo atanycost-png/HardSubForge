@@ -8,6 +8,70 @@ e utiliza [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [2.4.1] - 2026-01-18
+
+### Added
+- 📂 Seleção de múltiplos vídeos via diálogo de arquivo
+  - Suporte para selecionar vários vídeos simultaneamente no diálogo de seleção
+  - Ao selecionar 2+ vídeos, pergunta automaticamente se deseja ativar modo de lote
+  - Comportamento consistente entre clique na área e drag & drop
+
+### Added
+- 📝 Diálogo de configuração de legenda individual em modo de lote
+  - Novo diálogo antes de cada conversão em lote para selecionar legenda específica
+  - Opções disponíveis:
+    - ✅ Usar legenda detectada automaticamente
+    - 📁 Selecionar legenda customizada
+    - ❌ Converter sem legenda
+    - ⏭️ Pular este vídeo (passa para o próximo)
+    - ⏭️ Pular Todos (cancela todo o lote)
+    - ❌ Cancelar (cancela todo o lote)
+  - Exibe progresso atual (Vídeo X/Y)
+  - Mostra nome do vídeo sendo processado
+  - Interface intuitiva com radio buttons e feedback visual
+
+### Changed
+- Atualização da versão para 2.4.1 (patch release)
+
+---
+
+## [2.4.0] - 2026-01-18
+
+### Added
+- 🎧 Opção para copiar áudio sem reencode (-c:a copy)
+  - Novo checkbox "Copiar áudio sem reencode (mais rápido)" para preservar o codec original do áudio
+  - Melhora significativa de performance ao converter vídeos
+  - Configuração salva automaticamente nas preferências do usuário
+
+### Added
+- 🌍 Tradução amigável dos idiomas de áudio
+  - Mapeamento completo de ~180 códigos ISO 639-2/3 para português
+  - Nomes traduzidos para idiomas comuns (por → Português, eng → Inglês, spa → Espanhol, etc)
+  - Exibição amigável no combo de seleção de faixas de áudio
+
+### Added
+- 📊 Exibição do encoder ativo em tempo real
+  - Novo label "Encoder: NVENC/CPU" na barra de status
+  - Indicador visual colorido (verde para NVENC, cinza para CPU)
+  - Atualização automática ao iniciar conversões (single e batch)
+
+### Changed
+- Atualização da versão para 2.4.0
+
+---
+
+## [2.3.1] - 2026-01-18
+
+### Added
+- Otimizações de performance (Bolt ⚡):
+  - Pré-compilação de expressões regulares em nível de módulo para reduzir overhead no loop de processamento.
+  - Cache de I/O (via `functools.lru_cache`) para caminhos de fontes e resolução de binários (FFprobe).
+  - Otimização do loop de parsing do log do FFmpeg para ignorar buscas redundantes.
+
+### Changed
+- Refatoração interna da busca por binários do FFmpeg/FFprobe para maior eficiência.
+- Melhoria na sanitização de nomes de arquivos.
+
 ## [2.3.0] - 2026-01-14
 
 ### Added

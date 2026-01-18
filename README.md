@@ -14,9 +14,13 @@ Aplicação desktop em Python para **converter vídeos com legendas embutidas (h
 * **🎬 Conversão de Vídeo:** Processamento robusto via FFmpeg.
 * **📝 Legendas Hardcoded:** Embutir legendas externas nos formatos `.srt`, `.ass` e `.ssa`.
 * **🏷️ Watermark:** Adicionar texto ou marca d'água com posição e tamanho configuráveis.
-* **🎧 Gestão de Áudio:** Seleção manual de faixas de áudio para arquivos multi-idioma.
+* **🎧 Gestão de Áudio:** Seleção manual de faixas de áudio para arquivos multi-idioma com nomes traduzidos.
 * **🎚️ Presets de Qualidade:** Opções prontas (Alta/Padrão) e editor de presets personalizados (Bitrate/NVENC).
 * **🚀 Aceleração por Hardware:** Suporte a NVIDIA (NVENC) com fallback automático para CPU (`libx264`).
+* **⚡ Cópia de Áudio:** Opção para copiar áudio sem reencode para máxima performance.
+* **📊 Encoder em Tempo Real:** Indicador visual do encoder ativo (NVENC/CPU) na interface.
+* **📦 Conversão em Lote:** Processamento de múltiplos arquivos via Drag & Drop ou seleção de arquivo com configuração individual de legendas.
+* **⚡ Alta Performance:** Otimizado com cache de I/O e processamento eficiente de logs.
 * **📊 Interface Moderna:** Suporte a **Drag & Drop**, log detalhado e barra de progresso.
 * **💻 Multiplataforma:** Compatível com Windows, Linux e macOS*.
 

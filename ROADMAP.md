@@ -12,14 +12,9 @@ As versões e prazos podem ser ajustados conforme feedback da comunidade.
 Aprimorar controle de qualidade, desempenho e experiência do usuário.
 
 ### ✨ Funcionalidades planejadas
-- 🎚️ Preset de qualidade totalmente personalizado
-  - Controle manual de bitrate de vídeo
-  - Controle de bitrate de áudio
-  - Escolha de preset (CPU / NVENC)
 - 🎧 Opção para copiar áudio sem reencode (`-c:a copy`)
 - 🌍 Tradução amigável dos idiomas de áudio (ex: `por` → Português)
-- 🧠 Lembrar últimas configurações utilizadas pelo usuário
-- 📊 Exibição do encoder ativo (CPU / NVENC)
+- 📊 Exibição do encoder ativo (CPU / NVENC) em tempo real
 
 ---
 
@@ -85,4 +80,4 @@ O **HardSub Converter Pro** busca ser:
 
 ---
 
-Atualizado em: **2026-01-12**
+Atualizado em: **2026-01-18**
