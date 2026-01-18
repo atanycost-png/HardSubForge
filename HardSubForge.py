@@ -23,7 +23,7 @@ from PySide6.QtGui import QFont, QColor, QPalette, QDesktopServices
 # --- CONFIGURAÇÕES E UTILITÁRIOS ---
 
 CONFIG_FILE = "config.json"
-APP_VERSION = "2.3.0"
+APP_VERSION = "2.3.1"
 
 # Regex patterns pre-compiled for performance
 TIME_PATTERN = re.compile(r'time=(\d{2}):(\d{2}):(\d{2}\.\d{2})')

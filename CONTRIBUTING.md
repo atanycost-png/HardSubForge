@@ -43,6 +43,15 @@ Descreva:
 
 ---
 
+## ⚡ Performance
+
+Ao contribuir com código, mantenha a performance em mente:
+- **Regex:** Pré-compile expressões regulares no nível do módulo (global) se forem usadas em loops.
+- **I/O:** Utilize `functools.lru_cache` para funções que realizam buscas pesadas no sistema de arquivos e cujos resultados sejam estáticos.
+- **Loops:** Evite cálculos redundantes dentro de loops de processamento de log ou frames.
+
+---
+
 📄 Licença
 
 Ao contribuir com este projeto, você concorda que sua contribuição será licenciada sob a licença MIT, a mesma do projeto.

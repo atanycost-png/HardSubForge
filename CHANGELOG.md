@@ -8,6 +8,18 @@ e utiliza [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [2.3.1] - 2026-01-18
+
+### Added
+- Otimizações de performance (Bolt ⚡):
+  - Pré-compilação de expressões regulares em nível de módulo para reduzir overhead no loop de processamento.
+  - Cache de I/O (via `functools.lru_cache`) para caminhos de fontes e resolução de binários (FFprobe).
+  - Otimização do loop de parsing do log do FFmpeg para ignorar buscas redundantes.
+
+### Changed
+- Refatoração interna da busca por binários do FFmpeg/FFprobe para maior eficiência.
+- Melhoria na sanitização de nomes de arquivos.
+
 ## [2.3.0] - 2026-01-14
 
 ### Added

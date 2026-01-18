@@ -17,6 +17,8 @@ Aplicação desktop em Python para **converter vídeos com legendas embutidas (h
 * **🎧 Gestão de Áudio:** Seleção manual de faixas de áudio para arquivos multi-idioma.
 * **🎚️ Presets de Qualidade:** Opções prontas (Alta/Padrão) e editor de presets personalizados (Bitrate/NVENC).
 * **🚀 Aceleração por Hardware:** Suporte a NVIDIA (NVENC) com fallback automático para CPU (`libx264`).
+* **📦 Conversão em Lote:** Processamento simultâneo de múltiplos arquivos via Drag & Drop.
+* **⚡ Alta Performance:** Otimizado com cache de I/O e processamento eficiente de logs.
 * **📊 Interface Moderna:** Suporte a **Drag & Drop**, log detalhado e barra de progresso.
 * **💻 Multiplataforma:** Compatível com Windows, Linux e macOS*.
 
