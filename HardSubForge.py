@@ -136,8 +136,10 @@ LANGUAGE_NAMES = {
     "zul": "Zulu", "zun": "Zuni", "zxx": "No linguistic content", "zza": "Zaza"
 }
 
+@functools.lru_cache(maxsize=128)
 def get_language_name(code: str) -> str:
-    """Retorna o nome amigável do idioma baseado no código ISO."""
+    """Retorna o nome amigável do idioma baseado no código ISO.
+    Memoizado para evitar repetição de buscas em dicionário e manipulação de strings."""
     if not code:
         return "Desconhecido"
     return LANGUAGE_NAMES.get(code.lower(), code)
@@ -314,6 +316,7 @@ class FFmpegWorker(QThread):
     def run(self):
         try:
             total_duration = 0
+            last_percent = -1  # Otimização: evita emissões de sinais redundantes
             creation_flags = 0
 
             if platform.system() == "Windows":
@@ -328,20 +331,26 @@ class FFmpegWorker(QThread):
                 if self._is_cancelled: break
                 self.log_signal.emit(line.strip())
 
-                if total_duration == 0:
+                # Otimização: gatekeeper 'Duration' evita busca regex desnecessária em cada linha
+                if total_duration == 0 and 'Duration' in line:
                     d_match = DURATION_PATTERN.search(line)
                     if d_match:
                         h, m, s = map(float, d_match.groups())
                         total_duration = h * 3600 + m * 60 + s
                         continue # Skip time search for the same line
 
-                if total_duration > 0:
+                # Otimização: gatekeeper 'time=' evita busca regex desnecessária em cada linha
+                if total_duration > 0 and 'time=' in line:
                     t_match = TIME_PATTERN.search(line)
                     if t_match:
                         h, m, s = map(float, t_match.groups())
                         current_time = h * 3600 + m * 60 + s
                         percent = min(int((current_time / total_duration) * 100), 99)
-                        self.progress_signal.emit(percent)
+
+                        # Otimização: só emite sinal se o percentual inteiro mudou
+                        if percent != last_percent:
+                            self.progress_signal.emit(percent)
+                            last_percent = percent
 
             self.process.wait()
             if self._is_cancelled: self.finished_signal.emit(-2, "")
