@@ -315,6 +315,7 @@ class FFmpegWorker(QThread):
         try:
             total_duration = 0
             creation_flags = 0
+            last_percent = -1
 
             if platform.system() == "Windows":
                 creation_flags = subprocess.CREATE_NO_WINDOW
@@ -328,20 +329,24 @@ class FFmpegWorker(QThread):
                 if self._is_cancelled: break
                 self.log_signal.emit(line.strip())
 
-                if total_duration == 0:
+                # Optimization: Gatekeeper check for duration and progress to avoid redundant regex searches
+                if total_duration == 0 and 'Duration: ' in line:
                     d_match = DURATION_PATTERN.search(line)
                     if d_match:
                         h, m, s = map(float, d_match.groups())
                         total_duration = h * 3600 + m * 60 + s
                         continue # Skip time search for the same line
 
-                if total_duration > 0:
+                if total_duration > 0 and 'time=' in line:
                     t_match = TIME_PATTERN.search(line)
                     if t_match:
                         h, m, s = map(float, t_match.groups())
                         current_time = h * 3600 + m * 60 + s
                         percent = min(int((current_time / total_duration) * 100), 99)
-                        self.progress_signal.emit(percent)
+                        # Optimization: Throttle signal emissions to only when percent changes
+                        if percent != last_percent:
+                            self.progress_signal.emit(percent)
+                            last_percent = percent
 
             self.process.wait()
             if self._is_cancelled: self.finished_signal.emit(-2, "")
