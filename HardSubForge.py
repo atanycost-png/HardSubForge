@@ -136,6 +136,7 @@ LANGUAGE_NAMES = {
     "zul": "Zulu", "zun": "Zuni", "zxx": "No linguistic content", "zza": "Zaza"
 }
 
+@functools.lru_cache(maxsize=128) # Memoize ISO language lookups to avoid repeated string operations
 def get_language_name(code: str) -> str:
     """Retorna o nome amigável do idioma baseado no código ISO."""
     if not code:
@@ -324,24 +325,32 @@ class FFmpegWorker(QThread):
                 text=True, encoding='utf-8', errors='replace', creationflags=creation_flags
             )
 
+            last_percent = -1
             for line in self.process.stdout:
                 if self._is_cancelled: break
-                self.log_signal.emit(line.strip())
+                stripped = line.strip()
+                self.log_signal.emit(stripped)
 
+                # Optimization: Use string membership checks before regex to reduce CPU overhead in the hot loop
                 if total_duration == 0:
-                    d_match = DURATION_PATTERN.search(line)
-                    if d_match:
-                        h, m, s = map(float, d_match.groups())
-                        total_duration = h * 3600 + m * 60 + s
-                        continue # Skip time search for the same line
+                    if "Duration:" in stripped:
+                        d_match = DURATION_PATTERN.search(stripped)
+                        if d_match:
+                            h, m, s = map(float, d_match.groups())
+                            total_duration = h * 3600 + m * 60 + s
+                            continue # Skip time search for the same line
 
-                if total_duration > 0:
-                    t_match = TIME_PATTERN.search(line)
-                    if t_match:
-                        h, m, s = map(float, t_match.groups())
-                        current_time = h * 3600 + m * 60 + s
-                        percent = min(int((current_time / total_duration) * 100), 99)
-                        self.progress_signal.emit(percent)
+                else: # total_duration > 0
+                    if "time=" in stripped:
+                        t_match = TIME_PATTERN.search(stripped)
+                        if t_match:
+                            h, m, s = map(float, t_match.groups())
+                            current_time = h * 3600 + m * 60 + s
+                            percent = min(int((current_time / total_duration) * 100), 99)
+                            # Optimization: Only emit signal when percentage changes to avoid flooding the UI thread
+                            if percent != last_percent:
+                                self.progress_signal.emit(percent)
+                                last_percent = percent
 
             self.process.wait()
             if self._is_cancelled: self.finished_signal.emit(-2, "")
