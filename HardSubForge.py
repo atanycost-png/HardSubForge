@@ -329,7 +329,11 @@ class FFmpegWorker(QThread):
             for line in self.process.stdout:
                 if self._is_cancelled: break
                 stripped = line.strip()
-                self.log_signal.emit(stripped)
+                if not stripped: continue
+
+                # Optimization: Skip emitting progress updates to the log to save UI resources
+                if "time=" not in stripped:
+                    self.log_signal.emit(stripped)
 
                 # Optimization: Use string membership checks before regex to reduce CPU overhead in the hot loop
                 if total_duration == 0:
@@ -881,6 +885,8 @@ class VideoConverterApp(QMainWindow):
         self.txt_log.setReadOnly(True)
         self.txt_log.setStyleSheet("background-color: #121212; color: #00FF00; font-family: Consolas, monospace; font-size: 10px;")
         self.txt_log.setMaximumHeight(200)
+        # Optimization: Limit log size to prevent UI lag during long-running batch processes
+        self.txt_log.document().setMaximumBlockCount(1000)
         layout.addWidget(self.txt_log)
 
     def update_ffmpeg_status_ui(self):
