@@ -1,106 +1,53 @@
-# 🎬 HardSub Converter Pro
+# HardSubForge v3.0.0
 
-![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
-![PySide6](https://img.shields.io/badge/PySide6-41CD52?style=for-the-badge&logo=qt&logoColor=white)
-![FFmpeg](https://img.shields.io/badge/FFmpeg-007808?style=for-the-badge&logo=ffmpeg&logoColor=white)
-![License](https://img.shields.io/badge/license-MIT-blue.svg?style=for-the-badge)
+Aplicativo de conversão de vídeo otimizado para sites de streaming (Mixdrop, Byse.sx).
 
-Aplicação desktop em Python para **converter vídeos com legendas embutidas (hardcoded)**, texto/watermark customizável e controle avançado de qualidade, utilizando **FFmpeg** com suporte opcional a **aceleração NVIDIA NVENC**.
-
----
-
-## ✨ Funcionalidades
-
-* **🎬 Conversão de Vídeo:** Processamento robusto via FFmpeg.
-* **📝 Legendas Hardcoded:** Embutir legendas externas nos formatos `.srt`, `.ass` e `.ssa`.
-* **🏷️ Watermark:** Adicionar texto ou marca d'água com posição e tamanho configuráveis.
-* **🎧 Gestão de Áudio:** Seleção manual de faixas de áudio para arquivos multi-idioma com nomes traduzidos.
-* **🎚️ Presets de Qualidade:** Opções prontas (Alta/Padrão) e editor de presets personalizados (Bitrate/NVENC).
-* **🚀 Aceleração por Hardware:** Suporte a NVIDIA (NVENC) com fallback automático para CPU (`libx264`).
-* **⚡ Cópia de Áudio:** Opção para copiar áudio sem reencode para máxima performance.
-* **📊 Encoder em Tempo Real:** Indicador visual do encoder ativo (NVENC/CPU) na interface.
-* **📦 Conversão em Lote:** Processamento de múltiplos arquivos via Drag & Drop ou seleção de arquivo com configuração individual de legendas.
-* **⚡ Alta Performance:** Otimizado com cache de I/O e processamento eficiente de logs.
-* **📊 Interface Moderna:** Suporte a **Drag & Drop**, log detalhado e barra de progresso.
-* **💻 Multiplataforma:** Compatível com Windows, Linux e macOS*.
-
-> \* *A aceleração por hardware é aplicada automaticamente apenas em GPUs NVIDIA.*
-
----
-
-## 🧠 Como funciona a aceleração por hardware
-
-O aplicativo detecta automaticamente o hardware disponível para otimizar a velocidade:
-
-1.  **Detecção de GPU:** O sistema verifica se há uma GPU NVIDIA compatível.
-2.  **Uso de NVENC:** Se detectada, o app utiliza o encoder de hardware para conversões ultrarrápidas.
-3.  **Fallback para CPU:** Caso não haja GPU NVIDIA, a conversão é feita automaticamente via CPU (libx264), garantindo que o processo nunca falhe.
-
----
-
-## 📦 Requisitos
-
-* **Python 3.9+**
-* **FFmpeg:** Instalado no sistema ou permitido o download automático (funcionalidade disponível para Windows).
-* **Bibliotecas:** PySide6.
-
----
-
-## ▶️ Executando o projeto
-
-Para rodar o projeto localmente, siga os passos abaixo:
+## Instalação
 
 ```bash
-# Instale a interface gráfica
-pip install PySide6
-
-# Execute a aplicação
-python HardSubForge.py
-
+pip install -r requirements.txt
+python main.py
 ```
 
-*Nota: No Windows, o aplicativo tentará baixar o FFmpeg automaticamente caso não o encontre no PATH.*
+## Presets Disponíveis
 
----
+- **Máxima Qualidade**: Melhor qualidade compatível (1080p, 5500k)
+- **Mixdrop**: Otimizado para Mixdrop (1080p, 4500k)
+- **Byse.sx**: Otimizado para Byse.sx (1080p, 4500k)
+- **Equilibrado**: Bom equilíbrio (1080p, 3500k)
 
-## ⚙️ Especificações Técnicas
+## Presets Customizados
 
-### 🗂️ Formatos Suportados
+Crie seus próprios presets clicando no botão "+" na seção de qualidade.
 
-| Tipo | Extensões |
-| --- | --- |
-| **Vídeo** | `.mp4`, `.mkv`, `.avi`, `.mov`, `.wmv`, `.flv` |
-| **Legendas** | `.srt`, `.ass`, `.ssa` |
+## Funcionalidades
 
-### 📁 Arquivos Gerados
+- **Presets Otimizados**: Presets específicos para Mixdrop e Byse.sx
+- **Legendas Hardcoded**: Embarque legendas (.srt, .ass, .ssa) no vídeo
+- **Watermark**: Adicione texto com posição e tamanho customizáveis
+- **Resolução 1080p**: Vídeos convertidos em Full HD
+- **Saída Customizável**: Escolha o caminho e nome do arquivo de saída
+- **Seleção de Áudio**: Escolha faixas de áudio em vídeos multitrack
+- **Aceleração NVIDIA**: Suporte a NVENC para conversão mais rápida
+- **Interface Moderna**: UI limpa com tema escuro
+- **Clique para Selecionar**: Clique na área para abrir o seletor de arquivos
 
-Os vídeos convertidos são salvos no mesmo diretório do arquivo original seguindo o padrão:
-`nome_do_video@converted.mp4`
+## Uso
 
----
+1. **Selecionar Vídeo**: Clique na área ou arraste o arquivo
+2. **Escolher Legenda**: Detectada automaticamente ou selecione manualmente
+3. **Configurar Áudio**: Selecione a faixa de áudio desejada
+4. **Adicionar Watermark**: Configure texto e posição (opcional)
+5. **Escolher Preset**: Selecione o preset de qualidade
+6. **Definir Saída**: Configure caminho e nome do arquivo
+7. **Converter**: Clique em "INICIAR CONVERSÃO"
 
-## 🧪 Status do Projeto
+## Requisitos
 
-* ✅ Estável para uso diário.
-* ✅ Focado em simplicidade e estabilidade.
-* ⚠️ Suporte a AMD/VAAPI não implementado (usa CPU automaticamente nestes casos).
+- Python 3.9+
+- FFmpeg (baixado automaticamente no Windows ou manualmente em outros sistemas)
+- PySide6
 
----
+## Licença
 
-## 🤝 Contribuições
-
-Contribuições são muito bem-vindas!
-
-1. Faça um Fork do projeto.
-2. Crie uma branch para sua modificação (`git checkout -b feature/nova-funcionalidade`).
-3. Envie um Pull Request.
-
-Para mais detalhes, veja o arquivo `CONTRIBUTING.md`.
-
----
-
-## 📄 Licença
-
-Este projeto é distribuído sob a licença **MIT**. Sinta-se livre para usar, modificar e distribuir conforme desejar.
-
-```
+MIT

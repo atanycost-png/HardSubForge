@@ -8,6 +8,41 @@ e utiliza [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [3.0.0] - 2026-01-28
+
+### Adicionado
+- **Presets para Sites de Streaming**: Presets otimizados especificamente para Mixdrop e Byse.sx
+- **Saída Customizável**: Campo para selecionar caminho de saída e nome personalizado do arquivo
+- **Clique para Selecionar**: Área de drag & drop agora aceita clique para abrir o seletor de arquivos
+- **Arquitetura Modular**: Código reestruturado em módulos (config, ffmpeg, presets, ui, workers, utils)
+- **Sistema de Presets Customizados**: Interface para criar e deletar presets personalizados
+
+### Alterado
+- Resolução padrão limitada a 1080p para otimização com sites de streaming
+- Lógica de conversão baseada no código original (v2.4.1) para maior estabilidade
+- Interface da seção de legenda simplificada (apenas legendas externas por enquanto)
+
+### Corrigido
+- **Erro na conversão com legenda embutida**: Removida implementação problemática de legendas embutidas que causava erros no FFmpeg
+- **Seleção de áudio não funcionando**: Corrigido o preenchimento do combo box de áudio
+- **Detecção de faixas de áudio**: Agora reconhece corretamente todas as faixas de áudio disponíveis
+- **Mapeamento de faixas**: Corrigido o mapeamento de áudio e vídeo para conversões corretas
+- **Filtros FFmpeg**: Corrigida a aplicação de filtros de escala, legenda e watermark
+- **Erro ao final da conversão**: Corrigida a emissão de sinal de finalização
+
+### Removido
+- **Presets de Streaming Sites**: Removidos presets específicos para Streamtape e Filemoon
+- **Legendas Embutidas**: Removida temporariamente esta funcionalidade (será reimplementada em versão futura com abordagem correta)
+- **Processamento em lote**: Removido nesta versão (será reimplementado em versão futura)
+
+### Notas
+- Esta versão foca em estabilidade baseando-se no código original (v2.4.1)
+- Suporte a legendas embutidas será adicionado em versão futura com implementação correta
+- Presets disponíveis: Máxima Qualidade, Mixdrop, Byse.sx e Equilibrado
+- Presets customizados podem ser criados pelo usuário
+
+---
+
 ## [2.4.1] - 2026-01-18
 
 ### Added

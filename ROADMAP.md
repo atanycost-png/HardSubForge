@@ -1,83 +1,108 @@
-# Roadmap
+# Roadmap - HardSubForge
 
-Este roadmap descreve a evolução planejada do **HardSub Converter Pro**, priorizando estabilidade, usabilidade e funcionalidades que tragam valor real ao usuário final.
+Este documento descreve o plano de desenvolvimento e funcionalidades planejadas para o HardSubForge.
 
-As versões e prazos podem ser ajustados conforme feedback da comunidade.
+## Versão Atual: 3.0.0
 
----
+Lançada em 2026-01-28
 
-## 🚀 Próxima versão – v2.4.0
+## Funcionalidades Implementadas
 
-### 🎯 Objetivo
-Aprimorar controle de qualidade, desempenho e experiência do usuário.
+### ✅ Arquitetura Modular (v3.0.0)
+- Estrutura organizada em módulos: config, ffmpeg, presets, ui, workers, utils
+- Separação clara de responsabilidades
+- Código mais manutenível e testável
 
-### ✨ Funcionalidades planejadas
-- 🎧 Opção para copiar áudio sem reencode (`-c:a copy`)
-- 🌍 Tradução amigável dos idiomas de áudio (ex: `por` → Português)
-- 📊 Exibição do encoder ativo (CPU / NVENC) em tempo real
+### ✅ Presets de Qualidade (v3.0.0)
+- Máxima Qualidade (1080p, 5500k)
+- Mixdrop (1080p, 4500k)
+- Byse.sx (1080p, 4500k)
+- Equilibrado (1080p, 3500k)
+- Sistema de presets customizados
 
----
+### ✅ Legendas (v3.0.0)
+- Suporte a legendas externas (.srt, .ass, .ssa)
+- Detecção automática de legendas
+- Seleção manual de legendas
 
-## 🔧 Médio prazo – v2.5.x
+### ✅ Watermark (v3.0.0)
+- Texto customizável
+- Posição configurável (topo, centro, inferior)
+- Tamanho ajustável
+- Fundo com transparência
 
-### 🎯 Objetivo
-Melhorar produtividade e organização para usuários avançados.
+### ✅ Áudio (v3.0.0)
+- Seleção de faixas de áudio
+- Detecção de idiomas
+- Suporte a múltiplas faixas
+- Opção de copiar áudio sem reencode
 
-### Funcionalidades planejadas
-- 📂 Conversão em lote avançada
-  - Pausar / retomar fila
-  - Reordenar arquivos
-- 📝 Preview de texto/watermark
-- 🧹 Opção para sobrescrever arquivos existentes
-- 🔔 Notificação sonora opcional ao finalizar conversões
+### ✅ Hardware (v3.0.0)
+- Aceleração NVIDIA NVENC
+- Fallback automático para CPU
+- Detecção automática de GPU
 
----
+### ✅ Interface (v3.0.0)
+- Interface moderna com tema escuro
+- Área de drag & drop
+- Clique para selecionar arquivo
+- Barra de progresso em tempo real
+- Log detalhado
+- System tray
+- Notificações
 
-## 🧪 Longo prazo – v2.6.x+
+## Próximas Versões
 
-### 🎯 Objetivo
-Tornar o projeto mais extensível e fácil de manter.
+### Versão 3.1.0 - Planejada
 
-### Funcionalidades planejadas
-- 🧩 Refatoração modular do código
-- 🧪 Testes automatizados básicos
-- ⚙️ CLI (interface de linha de comando)
-- 🎨 Suporte a temas (claro / escuro)
-- 🌐 Internacionalização (i18n)
+#### Funcionalidades Prioritárias
+- [ ] Suporte a legendas embutidas no vídeo
+- [ ] Processamento em lote (batch)
+- [ ] Visualização do vídeo pré-conversão
+- [ ] Preview de legenda e watermark
 
----
+#### Melhorias
+- [ ] Suporte a mais formatos de vídeo (WebM, AV1)
+- [ ] Configurações avançadas de FFmpeg
+- [ ] Presets editáveis
+- [ ] Histórico de conversões
 
-## 🏁 Fora do escopo (por enquanto)
+### Versão 3.2.0 - Planejada
 
-As seguintes ideias foram consideradas, mas **não estão planejadas** no curto prazo:
+#### Funcionalidades
+- [ ] Suporte a legendas embutidas com estilo customizável
+- [ ] Edição de legendas
+- [ ] Multi-threading para batch
+- [ ] Exportação/importação de presets
 
-- ❌ Sistema de abas (tabs)
-- ❌ Suporte oficial a aceleração AMD / VAAPI
-- ❌ Edição avançada de vídeo (cortes, filtros complexos)
+#### Melhorias
+- [ ] Interface responsiva
+- [ ] Modo avançado
+- [ ] Temas personalizáveis
+- [ ] Atalhos de teclado
 
-Essas funcionalidades exigiriam uma refatoração significativa ou aumentariam muito a complexidade do projeto.
+### Versão 4.0.0 - Futuro
 
----
+#### Funcionalidades Planejadas
+- [ ] Suporte a mais codecs (H.265, AV1)
+- [ ] Processamento na nuvem
+- [ ] Integração com APIs de streaming
+- [ ] App mobile ou web
 
-## 🤝 Contribuições
+## Funcionalidades Consideradas
 
-Sugestões são bem-vindas!  
-Caso queira contribuir com alguma funcionalidade do roadmap:
+As seguintes funcionalidades estão sendo consideradas para futuras versões:
 
-1. Abra uma issue descrevendo a ideia
-2. Discuta a abordagem antes de implementar
-3. Envie um Pull Request seguindo o padrão do projeto
+- Suporte a AMD VAAPI e Intel Quick Sync
+- Processamento distribuído em múltiplas GPUs
+- Automação com scripts
+- Plugins e extensões
+- Traduções da interface
 
----
+## Contribuições
 
-## 📌 Visão do projeto
+Se você quiser contribuir com alguma funcionalidade, verifique o arquivo [CONTRIBUTING.md](CONTRIBUTING.md) para diretrizes.
 
-O **HardSub Converter Pro** busca ser:
-- Simples para usuários comuns
-- Poderoso para usuários avançados
-- Estável e previsível
-- Fácil de manter e contribuir
+## Changelog
 
----
-
-Atualizado em: **2026-01-18**
+Para ver o histórico de mudanças, consulte o arquivo [CHANGELOG.md](CHANGELOG.md).

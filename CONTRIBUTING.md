@@ -1,64 +1,93 @@
 # Contribuindo com o HardSubForge
 
-Obrigado por considerar contribuir com o **HardSubForge** 🎉  
-Toda ajuda é bem-vinda, seja código, documentação, testes ou sugestões.
+Obrigado pelo interesse em contribuir com o HardSubForge! Este documento fornece diretrizes para contribuir com o projeto.
 
-Este documento define algumas diretrizes para manter o projeto organizado e acessível a todos.
+## Estrutura do Projeto
 
----
+O HardSubForge possui uma arquitetura modular organizada da seguinte forma:
 
-## 📌 Como contribuir
+```
+HardSubForge/
+├── config/           # Gerenciamento de configurações
+├── ffmpeg/           # Wrapper para FFmpeg
+├── presets/          # Definições de presets de qualidade
+├── ui/               # Interface do usuário (PySide6)
+├── utils/            # Funções auxiliares
+├── workers/          # Threads de processamento
+└── main.py           # Ponto de entrada da aplicação
+```
 
-Você pode contribuir de várias formas:
+## Desenvolvimento
 
-- Reportando bugs
-- Sugerindo novas funcionalidades
-- Melhorando a documentação
-- Enviando correções ou novas features via Pull Request
+### Pré-requisitos
 
----
+- Python 3.9+
+- FFmpeg instalado e disponível no PATH
+- Bibliotecas do requirements.txt
 
-## 🐞 Reportando bugs
+### Configuração do Ambiente
 
-Antes de abrir uma issue:
-1. Verifique se o problema já não foi reportado
-2. Utilize a versão mais recente do projeto
+```bash
+# Clone o repositório
+git clone https://github.com/seu-usuario/HardSubForge.git
+cd HardSubForge
 
-Ao abrir uma issue, inclua:
+# Instale as dependências
+pip install -r requirements.txt
+
+# Execute a aplicação
+python main.py
+```
+
+## Padrões de Código
+
+- Siga o PEP 8 para estilo de código
+- Use type hints quando apropriado
+- Adicione docstrings em funções e classes públicas
+- Mantenha os módulos pequenos e focados
+
+## Como Contribuir
+
+1. Faça um Fork do projeto
+2. Crie uma branch para sua funcionalidade (`git checkout -b feature/nova-funcionalidade`)
+3. Faça suas modificações
+4. Teste as alterações
+5. Faça o commit das mudanças (`git commit -m 'Adiciona nova funcionalidade'`)
+6. Faça o push para a branch (`git push origin feature/nova-funcionalidade`)
+7. Abra um Pull Request
+
+## Funcionalidades Disponíveis
+
+### Atual (v3.0.0)
+- Arquitetura modular
+- Presets otimizados para Mixdrop e Byse.sx
+- Legendas hardcoded (.srt, .ass, .ssa)
+- Watermark customizável
+- Seleção de faixas de áudio
+- Aceleração NVIDIA NVENC
+- Presets customizados
+
+### Planejado
+- Suporte a legendas embutidas do vídeo
+- Processamento em lote
+- Suporte a mais formatos de saída
+
+## Reportando Bugs
+
+Ao reportar bugs, inclua:
+- Versão do HardSubForge
 - Sistema operacional
-- Versão do Python
-- Passos para reproduzir o problema
-- Logs relevantes (se possível)
-- Comportamento esperado vs. comportamento atual
+- Descrição detalhada do problema
+- Passos para reproduzir
+- Logs relevantes (se aplicável)
 
----
+## Solicitando Funcionalidades
 
-## 💡 Sugerindo melhorias
+Abra uma issue com a tag "enhancement" e descreva:
+- Qual funcionalidade você gostaria de ver
+- Por que ela seria útil
+- Como você imagina que funcione
 
-Sugestões são sempre bem-vindas!  
-Descreva:
-- Qual problema a melhoria resolve
-- Como você imagina a solução
-- Se possível, exemplos de uso
+## Licença
 
----
-
-## ⚡ Performance
-
-Ao contribuir com código, mantenha a performance em mente:
-- **Regex:** Pré-compile expressões regulares no nível do módulo (global) se forem usadas em loops.
-- **I/O:** Utilize `functools.lru_cache` para funções que realizam buscas pesadas no sistema de arquivos e cujos resultados sejam estáticos.
-- **Loops:** Evite cálculos redundantes dentro de loops de processamento de log ou frames.
-
----
-
-📄 Licença
-
-Ao contribuir com este projeto, você concorda que sua contribuição será licenciada sob a licença MIT, a mesma do projeto.
-
-🤝 Código de Conduta
-
-Seja respeitoso e colaborativo.
-Críticas construtivas são sempre bem-vindas.
-
-Obrigado por ajudar a tornar o HardSubForge melhor! 🚀
+Ao contribuir, você concorda que suas contribuições serão licenciadas sob a licença MIT do projeto.
