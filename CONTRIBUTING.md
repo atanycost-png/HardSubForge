@@ -29,7 +29,7 @@ HardSubForge/
 
 ```bash
 # Clone o repositório
-git clone https://github.com/seu-usuario/HardSubForge.git
+git clone https://github.com/atanycost-png/HardSubForge.git
 cd HardSubForge
 
 # Instale as dependências
