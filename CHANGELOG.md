@@ -10,6 +10,9 @@ e utiliza [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
 ## [3.0.1] - 2026-06-24
 
+### Adicionado
+- **Legendas Embutidas**: Reimplementado suporte a legendas embutidas (MKV/MP4) com probe via ffprobe, combo de selecao na UI, e burn-in via filtro `subtitles` (codecs de texto: srt, ass, mov_text)
+
 ### Alterado
 - **Threading model**: Workers refatorados para o padrão `QObject + moveToThread` (não mais `QThread` subclass)
 - **Cancellation**: Adicionado `QMutex` + `QMutexLocker` para thread safety no cancelamento

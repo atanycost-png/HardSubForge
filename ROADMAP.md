@@ -4,7 +4,7 @@ Este documento descreve o plano de desenvolvimento e funcionalidades planejadas 
 
 ## Versão Atual: 3.0.1
 
-Lançada em 2026-01-28
+Lançada em 2026-06-24
 
 ## Funcionalidades Implementadas
 
@@ -20,9 +20,11 @@ Lançada em 2026-01-28
 - Econômico (480p, 1200k)
 - Sistema de presets customizados
 
-### ✅ Legendas (v3.0.0)
+### ✅ Legendas (v3.0.1)
 - Suporte a legendas externas (.srt, .ass, .ssa)
-- Detecção automática de legendas
+- Suporte a legendas embutidas no video (MKV/MP4)
+- Detecção automatica de legendas (externas + embutidas via ffprobe)
+- Queima de legenda embutida (burn-in) via indice de stream
 - Seleção manual de legendas
 
 ### ✅ Watermark (v3.0.0)
@@ -56,7 +58,7 @@ Lançada em 2026-01-28
 ### Versão 3.1.0 - Planejada
 
 #### Funcionalidades Prioritárias
-- [ ] Suporte a legendas embutidas no vídeo
+- [x] Suporte a legendas embutidas no vídeo
 - [ ] Processamento em lote (batch)
 - [ ] Visualização do vídeo pré-conversão
 - [ ] Preview de legenda e watermark

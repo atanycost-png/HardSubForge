@@ -67,8 +67,10 @@ The `.spec` file is **gitignored** (`*.spec`) but `build.bat` expects `HardSubFo
 ### Binary path caching
 - `get_ffmpeg_binary()` and `get_font_path()` use `lru_cache(maxsize=1)`. This means a manual FFmpeg path change via the settings dialog **recreates the FFmpegWrapper** (see `_select_ffmpeg_manual` in `main_window.py:697`), but the cached helper is not invalidated. If you add runtime binary switching, you must recreate the wrapper instance.
 
-### Subtitle detection is filename-only
-- `_detect_subtitle()` only checks for `.srt`/`.ass`/`.ssa` files with the **same stem** as the video in the **same directory**. It does not probe embedded subtitles (that feature is planned for v3.1).
+### Subtitle detection
+- `_detect_subtitle()` checks for `.srt`/`.ass`/`.ssa` files with the **same stem** as the video in the **same directory** (external subtitles).
+- `get_streams()` (via `ProbeWorker` on a `QThread`) probes **embedded subtitles** via ffprobe and populates `combo_subtitle_embedded`. The user can select an embedded subtitle track and enable burn-in via the checkbox.
+- Burn-in uses the FFmpeg `subtitles` filter: `subtitles='{input}':si={index}`. This works for text-based codecs (srt, ass, mov_text). Image-based codecs (dvdsub, hdmv_pgs) will fail — filtering is planned for a future version.
 
 ### Audio probing
 - Runs `ffprobe` in a `ProbeWorker` QObject on a `QThread`. Returns a list of dicts with `index`, `title`, `codec`, `language`. Language is mapped via `LANGUAGE_NAMES` dict. Unknown codes fall through as-is.
@@ -76,8 +78,8 @@ The `.spec` file is **gitignored** (`*.spec`) but `build.bat` expects `HardSubFo
 ### PyInstaller frozen path
 - `get_ffmpeg_binary()` checks `sys._MEIPASS` for bundled binaries first. `_MEIPASS` is only set when running as a PyInstaller executable — in dev mode, it falls back to `Path(__file__).parent.parent`.
 
-### No embedded subtitles or batch processing
-- Embedded subtitle extraction and batch conversion were **removed** in v3.0.0 (see CHANGELOG). They are planned for v3.1. Do not add them back using old code paths.
+### No batch processing
+- Batch conversion was **removed** in v3.0.0 (see CHANGELOG). It is planned for v3.1. Do not add it back using old code paths.
 
 ## Style notes
 
