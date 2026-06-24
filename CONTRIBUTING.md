@@ -58,9 +58,9 @@ python main.py
 
 ## Funcionalidades Disponíveis
 
-### Atual (v3.0.0)
+### Atual (v3.0.1)
 - Arquitetura modular
-- Presets otimizados para Mixdrop e Byse.sx
+- Presets otimizados para sites de streaming (Máxima Qualidade, Streaming Otimizado, Equilibrado, Econômico)
 - Legendas hardcoded (.srt, .ass, .ssa)
 - Watermark customizável
 - Seleção de faixas de áudio

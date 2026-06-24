@@ -8,6 +8,18 @@ e utiliza [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [3.0.1] - 2026-06-24
+
+### Alterado
+- **Threading model**: Workers refatorados para o padrão `QObject + moveToThread` (não mais `QThread` subclass)
+- **Cancellation**: Adicionado `QMutex` + `QMutexLocker` para thread safety no cancelamento
+- **Thread cleanup**: worker.finished → thread.quit → worker.deleteLater + thread.deleteLater
+- **Style system**: Extraídos tokens de estilo (`styles.py`) e gerenciador de temas (`theme.py`) como módulos separados
+- **Presets renomeados**: Mixdrop → Streaming Otimizado, Byse.sx → Econômico
+- **Preset Equilibrado**: Resolução ajustada de 1080p para 720p (3500k → 2500k)
+
+---
+
 ## [3.0.0] - 2026-01-28
 
 ### Adicionado

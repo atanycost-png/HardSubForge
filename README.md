@@ -1,4 +1,4 @@
-# HardSubForge v3.0.0
+# HardSubForge v3.0.1
 
 Aplicativo de conversão de vídeo otimizado para sites de streaming (Mixdrop, Byse.sx).
 
@@ -11,10 +11,10 @@ python main.py
 
 ## Presets Disponíveis
 
-- **Máxima Qualidade**: Melhor qualidade compatível (1080p, 5500k)
-- **Mixdrop**: Otimizado para Mixdrop (1080p, 4500k)
-- **Byse.sx**: Otimizado para Byse.sx (1080p, 4500k)
-- **Equilibrado**: Bom equilíbrio (1080p, 3500k)
+- **Máxima Qualidade**: Arquivamento (1080p, 5500k)
+- **Streaming Otimizado**: Upload sites (1080p, 4500k)
+- **Equilibrado**: Bom equilíbrio (720p, 2500k)
+- **Econômico**: Arquivo leve (480p, 1200k)
 
 ## Presets Customizados
 

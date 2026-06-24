@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo HardSubForge Build Script v3.0.0
+echo HardSubForge Build Script v3.0.1
 echo ========================================
 echo.
 

@@ -2,7 +2,7 @@
 
 Este documento descreve o plano de desenvolvimento e funcionalidades planejadas para o HardSubForge.
 
-## Versão Atual: 3.0.0
+## Versão Atual: 3.0.1
 
 Lançada em 2026-01-28
 
@@ -15,9 +15,9 @@ Lançada em 2026-01-28
 
 ### ✅ Presets de Qualidade (v3.0.0)
 - Máxima Qualidade (1080p, 5500k)
-- Mixdrop (1080p, 4500k)
-- Byse.sx (1080p, 4500k)
-- Equilibrado (1080p, 3500k)
+- Streaming Otimizado (1080p, 4500k)
+- Equilibrado (720p, 2500k)
+- Econômico (480p, 1200k)
 - Sistema de presets customizados
 
 ### ✅ Legendas (v3.0.0)
