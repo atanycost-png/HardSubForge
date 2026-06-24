@@ -42,33 +42,11 @@ class QualityPreset:
 
 
 class StreamingPresets:
-    """Coleção de presets de qualidade para sites de streaming."""
-    
-    MIXDROP = QualityPreset(
-        name="Mixdrop",
-        description="Otimizado para Mixdrop (1080p, 4500k)",
-        resolution="1920:1080",
-        bitrate="4500k",
-        maxrate="5000k",
-        bufsize="9000k",
-        preset="p4",
-        audio_bitrate="128k"
-    )
-    
-    BYSE = QualityPreset(
-        name="Byse",
-        description="Otimizado para Byse.sx (1080p, 4500k)",
-        resolution="1920:1080",
-        bitrate="4500k",
-        maxrate="5000k",
-        bufsize="9000k",
-        preset="p4",
-        audio_bitrate="128k"
-    )
-    
+    """Colecao de presets de qualidade para sites de streaming."""
+
     MAX_QUALITY = QualityPreset(
-        name="Máxima Qualidade",
-        description="Melhor qualidade compatível (1080p, 5500k)",
+        name="Maxima Qualidade",
+        description="Arquivamento (1080p, 5500k)",
         resolution="1920:1080",
         bitrate="5500k",
         maxrate="6000k",
@@ -76,28 +54,50 @@ class StreamingPresets:
         preset="p6",
         audio_bitrate="192k"
     )
-    
-    BALANCED = QualityPreset(
-        name="Equilibrado",
-        description="Bom equilíbrio (1080p, 3500k)",
+
+    STREAMING = QualityPreset(
+        name="Streaming Otimizado",
+        description="Upload sites (1080p, 4500k)",
         resolution="1920:1080",
-        bitrate="3500k",
-        maxrate="4000k",
-        bufsize="7000k",
+        bitrate="4500k",
+        maxrate="5000k",
+        bufsize="9000k",
         preset="p4",
         audio_bitrate="128k"
     )
-    
+
+    BALANCED = QualityPreset(
+        name="Equilibrado",
+        description="Bom equilibrio (720p, 2500k)",
+        resolution="1280:720",
+        bitrate="2500k",
+        maxrate="3000k",
+        bufsize="5000k",
+        preset="p4",
+        audio_bitrate="128k"
+    )
+
+    COMPACT = QualityPreset(
+        name="Economico",
+        description="Arquivo leve (480p, 1200k)",
+        resolution="854:480",
+        bitrate="1200k",
+        maxrate="1500k",
+        bufsize="2400k",
+        preset="p1",
+        audio_bitrate="96k"
+    )
+
     @classmethod
     def get_all(cls) -> list[QualityPreset]:
-        """Retorna todos os presets disponíveis."""
+        """Retorna todos os presets disponiveis."""
         return [
             cls.MAX_QUALITY,
-            cls.MIXDROP,
-            cls.BYSE,
-            cls.BALANCED
+            cls.STREAMING,
+            cls.BALANCED,
+            cls.COMPACT
         ]
-    
+
     @classmethod
     def get_preset_by_name(cls, name: str) -> Optional[QualityPreset]:
         """Retorna um preset pelo nome."""

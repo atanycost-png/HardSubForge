@@ -1,140 +1,275 @@
-"""Widgets reutilizáveis para a interface."""
+"""Widgets reutilizaveis para a interface."""
 
+from enum import Enum, auto
 from pathlib import Path
+from typing import Optional, List
 
-from PySide6.QtWidgets import (QLabel, QPushButton, QProgressBar, 
-                               QMessageBox, QDialog, QVBoxLayout, 
-                               QHBoxLayout, QFormLayout, QSpinBox,
-                               QLineEdit, QComboBox, QDialogButtonBox,
-                               QFileDialog)
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QPalette
+from PySide6.QtWidgets import (QLabel, QPushButton, QMessageBox, QDialog,
+                                QVBoxLayout, QHBoxLayout, QFormLayout,
+                                QLineEdit, QComboBox, QDialogButtonBox,
+                                QFileDialog, QWidget)
+from PySide6.QtCore import Qt, Signal, Slot
+from PySide6.QtGui import QColor
+
+from ui.styles import Color, Spacing, Radius
+
+
+class ButtonVariant(Enum):
+    """Variantes de estilo do ModernButton."""
+    NORMAL = auto()
+    DANGER = auto()
+    SUCCESS = auto()
+    MINIMAL = auto()
 
 
 class ModernButton(QPushButton):
-    """Botão moderno com estilo personalizado."""
-    
-    def __init__(self, text: str, color: str = "#4A90E2", hover_color: str = "#357ABD"):
-        super().__init__(text)
+    """Botao moderno com estados visuais."""
+
+    def __init__(self, text: str, *, variant: ButtonVariant = ButtonVariant.NORMAL,
+                 color: str = Color.PRIMARY, hover_color: str = Color.PRIMARY_HOVER,
+                 parent: Optional[QWidget] = None):
+        super().__init__(text, parent)
+        self._color = color
+        self._hover_color = hover_color
+        self._variant = variant
+        self._apply_styles()
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def _apply_styles(self) -> None:
+        if self._variant == ButtonVariant.NORMAL:
+            bg = self._color
+            hbg = self._hover_color
+        elif self._variant == ButtonVariant.DANGER:
+            bg = Color.DANGER
+            hbg = Color.DANGER_HOVER
+        elif self._variant == ButtonVariant.SUCCESS:
+            bg = Color.SUCCESS
+            hbg = Color.SUCCESS_HOVER
+        else:
+            bg = "transparent"
+            hbg = Color.BG_LIGHT
+
+        border = "none" if self._variant != ButtonVariant.MINIMAL else f"1px solid {Color.BORDER}"
         self.setStyleSheet(f"""
-            QPushButton {{ background-color: {color}; color: white; border-radius: 8px; padding: 10px; font-weight: bold; font-size: 14px; border: none; }}
-            QPushButton:hover {{ background-color: {hover_color}; }}
-            QPushButton:disabled {{ background-color: #444; color: #888; }}
+            QPushButton {{
+                background-color: {bg};
+                color: {Color.TEXT_PRIMARY};
+                border-radius: {Radius.MD}px;
+                padding: 10px 20px;
+                font-weight: bold;
+                font-size: 14px;
+                border: {border};
+            }}
+            QPushButton:hover {{
+                background-color: {hbg};
+            }}
+            QPushButton:pressed {{
+                background-color: {self._color};
+            }}
+            QPushButton:disabled {{
+                background-color: {Color.BG_MEDIUM};
+                color: {Color.TEXT_MUTED};
+            }}
         """)
-        self.setCursor(Qt.PointingHandCursor)
 
 
 class DropArea(QLabel):
-    """Área de drag & drop para arquivos."""
-    
+    """Area de drag & drop com suporte a clique."""
+
     files_dropped = Signal(list)
-    
-    def __init__(self, parent=None, parent_window=None):
+
+    IDLE_STYLE = f"""
+        QLabel {{
+            background-color: {Color.BG_DARK};
+            border: 2px dashed {Color.BORDER};
+            border-radius: {Radius.LG}px;
+            color: {Color.TEXT_SECONDARY};
+            padding: 30px;
+            min-height: 120px;
+            font-size: 14px;
+        }}
+        QLabel:hover {{
+            border-color: {Color.BORDER_HOVER};
+            color: {Color.TEXT_PRIMARY};
+            background-color: {Color.BG_MEDIUM};
+        }}
+    """
+
+    ACTIVE_STYLE = IDLE_STYLE.replace(Color.BORDER, Color.BORDER_FOCUS)
+
+    def __init__(self, parent: Optional[QWidget] = None, parent_window: Optional[object] = None):
         super().__init__(parent)
         self.parent_window = parent_window
-        self.setAlignment(Qt.AlignCenter)
-        self.setText("Arraste um arquivo de vídeo aqui\nou clique para selecionar")
-        self.setStyleSheet("""
-            QLabel { background-color: #2B2B2B; border: 2px dashed #555; border-radius: 10px; color: #AAA; padding: 30px; min-height: 120px; }
-            QLabel:hover { border-color: #4A90E2; color: #FFF; background-color: #333; }
-        """)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setText("Arraste um arquivo de video aqui\nou clique para selecionar")
+        self.setStyleSheet(self.IDLE_STYLE)
         self.setAcceptDrops(True)
-    
-    def dragEnterEvent(self, event):
+
+    def setText(self, text: str) -> None:
+        super().setText(text)
+
+    def dragEnterEvent(self, event) -> None:
         if event.mimeData().hasUrls():
             urls = event.mimeData().urls()
-            video_files = [u.toLocalFile().lower() for u in urls 
-                          if u.toLocalFile().lower().endswith(('.mkv', '.mp4', '.avi', '.mov', '.wmv', '.flv'))]
+            video_exts = ('.mkv', '.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm')
+            video_files = [u.toLocalFile().lower() for u in urls
+                           if u.toLocalFile().lower().endswith(video_exts)]
             if video_files:
                 event.accept()
-                self.setStyleSheet(self.styleSheet().replace("#555", "#4A90E2"))
+                self.setStyleSheet(self.ACTIVE_STYLE)
                 return
         event.ignore()
-    
-    def dragLeaveEvent(self, event):
-        self.setStyleSheet(self.styleSheet().replace("#4A90E2", "#555"))
-    
-    def dropEvent(self, event):
-        self.setStyleSheet(self.styleSheet().replace("#4A90E2", "#555"))
-        video_files = []
-        for url in event.mimeData().urls():
-            file_path = url.toLocalFile()
-            if file_path.lower().endswith(('.mkv', '.mp4', '.avi', '.mov', '.wmv', '.flv')):
-                video_files.append(file_path)
+
+    def dragLeaveEvent(self, event) -> None:
+        self.setStyleSheet(self.IDLE_STYLE)
+
+    @Slot()
+    def dropEvent(self, event) -> None:
+        self.setStyleSheet(self.IDLE_STYLE)
+        video_exts = ('.mkv', '.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm')
+        video_files = [
+            url.toLocalFile() for url in event.mimeData().urls()
+            if url.toLocalFile().lower().endswith(video_exts)
+        ]
         if video_files:
             self.files_dropped.emit(video_files)
-    
-    def mousePressEvent(self, event):
+
+    def mousePressEvent(self, event) -> None:
         if self.parent_window and hasattr(self.parent_window, '_select_video_dialog'):
             self.parent_window._select_video_dialog()
 
 
+class SectionCard(QWidget):
+    """Widget container com estilo de card."""
+
+    def __init__(self, title: str = "", parent: Optional[QWidget] = None):
+        super().__init__(parent)
+        self._layout = QVBoxLayout(self)
+        self._layout.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
+        self._layout.setSpacing(Spacing.MD)
+        self.setStyleSheet(f"""
+            QWidget#section_card {{
+                background-color: {Color.BG_CARD};
+                border: 1px solid {Color.BORDER};
+                border-radius: {Radius.LG}px;
+            }}
+        """)
+        self.setObjectName("section_card")
+
+        if title:
+            lbl = QLabel(title)
+            lbl.setStyleSheet(f"""
+                font-size: 14px;
+                font-weight: bold;
+                color: {Color.TEXT_SECONDARY};
+                padding-bottom: 4px;
+                background-color: transparent;
+            """)
+            self._layout.addWidget(lbl)
+
+
+class StatusPill(QLabel):
+    """Indicador de status tipo pill."""
+
+    def __init__(self, text: str = "", parent: Optional[QWidget] = None):
+        super().__init__(text, parent)
+        self._color = Color.TEXT_MUTED
+        self._bg = Color.BG_MEDIUM
+        self._update_style()
+
+    def set_status(self, text: str, color: str, bg: str) -> None:
+        self.setText(text)
+        self._color = color
+        self._bg = bg
+        self._update_style()
+
+    def _update_style(self) -> None:
+        self.setStyleSheet(f"""
+            QLabel {{
+                color: {self._color};
+                background-color: {self._bg};
+                font-size: 11px;
+                font-weight: bold;
+                padding: 4px 10px;
+                border-radius: {Radius.PILL}px;
+            }}
+        """)
+
+
 class AddPresetDialog(QDialog):
-    """Diálogo para adicionar um novo preset customizado."""
-    
-    def __init__(self, parent=None):
+    """Dialogo para adicionar um novo preset customizado."""
+
+    def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.setWindowTitle("Novo Preset Customizado")
-        self.setFixedSize(400, 350)
+        self.setMinimumSize(420, 380)
         self.preset_data = None
-        self.setup_ui()
-    
-    def setup_ui(self):
+        self._setup_ui()
+
+    def _setup_ui(self) -> None:
         layout = QFormLayout(self)
-        
+        layout.setSpacing(Spacing.MD)
+        layout.setContentsMargins(Spacing.XL, Spacing.XL, Spacing.XL, Spacing.XL)
+
         self.input_name = QLineEdit()
         self.input_name.setPlaceholderText("Ex: Meu Preset HD")
         layout.addRow("Nome do Preset:", self.input_name)
-        
+
         self.input_resolution = QComboBox()
         self.input_resolution.addItems([
             "1920:1080 (1080p)",
             "1280:720 (720p)",
             "854:480 (480p)"
         ])
-        layout.addRow("Resolução:", self.input_resolution)
-        
+        layout.addRow("Resolucao:", self.input_resolution)
+
         self.input_bitrate = QLineEdit()
         self.input_bitrate.setPlaceholderText("Ex: 4500k")
         layout.addRow("Bitrate (-b:v):", self.input_bitrate)
-        
+
         self.input_maxrate = QLineEdit()
         self.input_maxrate.setPlaceholderText("Opcional - Ex: 5000k")
         layout.addRow("Maxrate:", self.input_maxrate)
-        
+
         self.input_bufsize = QLineEdit()
         self.input_bufsize.setPlaceholderText("Opcional - Ex: 9000k")
         layout.addRow("Bufsize:", self.input_bufsize)
-        
+
         self.combo_preset = QComboBox()
-        self.combo_preset.addItems(["p1 (Mais Rápido)", "p4 (Equilibrado)", "p6 (Lento/Melhor)"])
+        self.combo_preset.addItems([
+            "p1 (Mais Rapido)",
+            "p4 (Equilibrado)",
+            "p6 (Lento/Melhor)"
+        ])
         layout.addRow("Preset NVENC:", self.combo_preset)
-        
-        buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(self.validate_and_accept)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self._validate_and_accept)
         buttons.rejected.connect(self.reject)
         layout.addRow(buttons)
-    
-    def validate_and_accept(self):
+
+    @Slot()
+    def _validate_and_accept(self) -> None:
         if not self.input_name.text() or not self.input_bitrate.text():
-            QMessageBox.warning(self, "Atenção", "Preencha pelo menos o Nome e o Bitrate.")
+            QMessageBox.warning(self, "Atencao", "Preencha pelo menos o Nome e o Bitrate.")
             return
-        
+
         if not self._validate_bitrate(self.input_bitrate.text()):
-            QMessageBox.warning(self, "Atenção", "O Bitrate deve seguir o formato 'XXXXk' (ex: 4500k)")
+            QMessageBox.warning(self, "Atencao", "O Bitrate deve seguir o formato 'XXXXk' (ex: 4500k)")
             return
-        
+
         if self.input_maxrate.text() and not self._validate_bitrate(self.input_maxrate.text()):
-            QMessageBox.warning(self, "Atenção", "O Maxrate deve seguir o formato 'XXXXk' (ex: 5000k)")
+            QMessageBox.warning(self, "Atencao", "O Maxrate deve seguir o formato 'XXXXk' (ex: 5000k)")
             return
-        
+
         if self.input_bufsize.text() and not self._validate_bitrate(self.input_bufsize.text()):
-            QMessageBox.warning(self, "Atenção", "O Bufsize deve seguir o formato 'XXXXk' (ex: 9000k)")
+            QMessageBox.warning(self, "Atencao", "O Bufsize deve seguir o formato 'XXXXk' (ex: 9000k)")
             return
-        
+
         preset_code = self.combo_preset.currentText().split()[0]
         resolution = self.input_resolution.currentText().split()[0]
-        
+
         from presets.definitions import CustomPreset
         self.preset_data = CustomPreset(
             name=self.input_name.text(),
@@ -144,13 +279,11 @@ class AddPresetDialog(QDialog):
             bufsize=self.input_bufsize.text(),
             preset=preset_code
         )
-        
         self.accept()
-    
+
     def _validate_bitrate(self, value: str) -> bool:
-        """Valida formato do bitrate."""
         import re
         return bool(re.match(r'^\d+k$', value))
-    
+
     def get_preset_data(self):
         return self.preset_data

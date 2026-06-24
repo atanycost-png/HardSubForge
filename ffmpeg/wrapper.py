@@ -23,6 +23,9 @@ class ConversionOptions:
     output_path: str
     preset: QualityPreset | CustomPreset
     subtitle_path: Optional[str] = None
+    subtitle_stream_index: Optional[int] = None
+    subtitle_burn: bool = False
+    custom_bitrate: Optional[str] = None
     watermark_text: str = ""
     watermark_position: str = "top"
     watermark_size: int = 22
@@ -53,9 +56,14 @@ class FFmpegWrapper:
         return check_nvidia_gpu()
     
     def get_audio_streams(self, video_path: str) -> List[Dict]:
-        """Retorna as faixas de áudio do vídeo."""
+        """Retorna as faixas de audio do video (compatibilidade)."""
+        return self.get_streams(video_path).get("audio", [])
+
+    def get_streams(self, video_path: str) -> Dict[str, List[Dict]]:
+        """Retorna faixas de audio e legendas do video."""
+        result = {"audio": [], "subtitles": []}
         if not self.ffprobe_path:
-            return []
+            return result
         
         cmd = [
             self.ffprobe_path,
@@ -66,47 +74,137 @@ class FFmpegWrapper:
         ]
         
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-            if result.returncode == 0:
+            proc_result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if proc_result.returncode == 0:
                 import json
-                data = json.loads(result.stdout)
+                data = json.loads(proc_result.stdout)
                 
-                streams = []
                 for s in data.get("streams", []):
-                    if s.get("codec_type") == "audio":
-                        index = s.get("index")
-                        codec = s.get("codec_name", "unk").upper()
-                        
-                        # Tenta obter idioma de várias formas
-                        lang_code = None
-                        tags = s.get("tags", {})
-                        if tags:
-                            lang_code = tags.get("language")
-                            if not lang_code:
-                                lang_code = tags.get("title")
-                        
-                        # Se não encontrou idioma, usa info da faixa
-                        if not lang_code:
+                    codec_type = s.get("codec_type", "")
+                    index = s.get("index", 0)
+                    codec = s.get("codec_name", "unk").upper()
+                    tags = s.get("tags", {})
+                    
+                    lang_code = tags.get("language") or tags.get("title") or ""
+                    from utils.helpers import get_language_name
+                    lang_name = get_language_name(lang_code) if lang_code else ""
+                    
+                    if codec_type == "audio":
+                        if not lang_name:
                             channels = s.get("channels", "unknown")
                             lang_name = f"{channels} Canais"
-                        else:
-                            from utils.helpers import get_language_name
-                            lang_name = get_language_name(lang_code)
-                        
-                        streams.append({
+                        result["audio"].append({
                             "index": index,
                             "title": f"Track {index}: {lang_name} ({codec})",
                             "codec": codec,
                             "language": lang_name
                         })
+                    
+                    elif codec_type == "subtitle":
+                        if not lang_name:
+                            lang_name = codec
+
+                        disposition = s.get("disposition", {})
+                        title_tag = tags.get("title", "").lower()
+
+                        if disposition.get("forced", 0) == 1 or "forced" in title_tag:
+                            sub_type = "Forcada"
+                        elif disposition.get("visual_impaired", 0) == 1 or "descriptive" in title_tag:
+                            sub_type = "AD"
+                        elif disposition.get("hearing_impaired", 0) == 1 or "sdh" in title_tag:
+                            sub_type = "SDH"
+                        elif disposition.get("default", 0) == 1:
+                            sub_type = "Padrao"
+                        else:
+                            sub_type = "Normal"
+
+                        result["subtitles"].append({
+                            "index": index,
+                            "title": f"Track {index}: {lang_name} ({codec}) [{sub_type}]",
+                            "codec": codec.lower(),
+                            "language": lang_name
+                        })
                 
-                return streams
         except Exception as e:
-            print(f"Erro ao obter faixas de áudio: {e}")
+            print(f"Erro ao obter streams: {e}")
             import traceback
             traceback.print_exc()
         
-        return []
+        return result
+
+    def get_duration(self, video_path: str) -> float:
+        """Retorna a duracao do video em segundos."""
+        if not self.ffprobe_path:
+            return 0.0
+
+        cmd = [
+            self.ffprobe_path,
+            "-v", "quiet",
+            "-print_format", "json",
+            "-show_format",
+            video_path
+        ]
+
+        try:
+            proc_result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if proc_result.returncode == 0:
+                import json
+                data = json.loads(proc_result.stdout)
+                return float(data.get("format", {}).get("duration", 0))
+        except Exception:
+            pass
+
+        return 0.0
+
+    def generate_preview(self, options: ConversionOptions, output_path: str,
+                         seek_seconds: float = 10.0) -> bool:
+        """Gera um frame de preview com filtros aplicados."""
+        if not self.ffmpeg_path:
+            return False
+
+        cmd = self.build_command(options)
+        preview_cmd = [
+            self.ffmpeg_path, "-y",
+            "-ss", str(seek_seconds),
+            "-i", options.input_path,
+            "-vframes", "1",
+            "-q:v", "2"
+        ]
+
+        filter_complex = None
+        filter_parts = []
+
+        scale_filter = f"scale={options.preset.resolution}:force_original_aspect_ratio=decrease,pad={options.preset.resolution}:(ow-iw)/2:(oh-ih)/2"
+        filter_parts.append(scale_filter)
+
+        if options.watermark_text and self.font_path:
+            safe_text = escape_filter_text(options.watermark_text)
+            pos_map = {"top": "y=20", "center": "y=(h-text_h)/2", "bottom": "y=h-text_h-20"}
+            y_pos = pos_map.get(options.watermark_position, "y=20")
+            safe_font = escape_path_for_filter(self.font_path)
+            drawtext = (f"drawtext=fontfile='{safe_font}':text='{safe_text}':fontcolor=white@0.9:fontsize={options.watermark_size}:box=1:boxcolor=black@0.4:boxborderw=10:x=(w-text_w)/2:{y_pos}")
+            filter_parts.append(drawtext)
+
+        if options.subtitle_burn:
+            if options.subtitle_path and Path(options.subtitle_path).exists():
+                safe_sub = escape_path_for_filter(options.subtitle_path)
+                filter_parts.append(f"subtitles='{safe_sub}'")
+            elif options.subtitle_stream_index is not None:
+                safe_input = escape_path_for_filter(options.input_path)
+                filter_parts.append(f"subtitles='{safe_input}':si={options.subtitle_stream_index}")
+
+        if filter_parts:
+            preview_cmd.extend(["-vf", ",".join(filter_parts)])
+
+        preview_cmd.append(output_path)
+
+        try:
+            creation_flags = subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
+            result = subprocess.run(preview_cmd, capture_output=True, timeout=30,
+                                     creationflags=creation_flags)
+            return result.returncode == 0 and Path(output_path).exists()
+        except Exception:
+            return False
     
     def build_command(self, options: ConversionOptions) -> List[str]:
         """Constrói o comando FFmpeg usando a lógica original."""
@@ -136,10 +234,14 @@ class FFmpegWrapper:
             drawtext = (f"drawtext=fontfile='{safe_font}':text='{safe_text}':fontcolor=white@0.9:fontsize={options.watermark_size}:box=1:boxcolor=black@0.4:boxborderw=10:x=(w-text_w)/2:{y_pos}")
             filter_parts.append(drawtext)
         
-        # Adiciona legenda externa
-        if options.subtitle_path and Path(options.subtitle_path).exists():
-            safe_sub = escape_path_for_filter(options.subtitle_path)
-            filter_parts.append(f"subtitles='{safe_sub}'")
+        # Adiciona legenda (externa ou embutida)
+        if options.subtitle_burn:
+            if options.subtitle_path and Path(options.subtitle_path).exists():
+                safe_sub = escape_path_for_filter(options.subtitle_path)
+                filter_parts.append(f"subtitles='{safe_sub}'")
+            elif options.subtitle_stream_index is not None:
+                safe_input = escape_path_for_filter(options.input_path)
+                filter_parts.append(f"subtitles='{safe_input}':si={options.subtitle_stream_index}")
         
         # Aplica filtros se houver
         if filter_parts:
@@ -167,9 +269,10 @@ class FFmpegWrapper:
             cmd.extend(["-c:a", "aac", "-b:a", options.preset.audio_bitrate])
         
         # Parâmetros de bitrate
+        bitrate_val = options.custom_bitrate if options.custom_bitrate else options.preset.bitrate
         cmd.extend([
             "-rc", "vbr",
-            "-b:v", options.preset.bitrate,
+            "-b:v", bitrate_val,
             "-maxrate", options.preset.maxrate,
             "-bufsize", options.preset.bufsize,
             "-profile:v", "high",
@@ -255,11 +358,16 @@ class FFmpegWrapper:
             return -1
     
     def stop(self):
-        """Cancela a conversão - usando a lógica original."""
+        """Cancela a conversao - usando a logica original."""
         self._is_cancelled = True
         if self.process:
             self.process.terminate()
-            try: 
+            try:
                 self.process.wait(timeout=5)
-            except: 
+            except subprocess.TimeoutExpired:
                 self.process.kill()
+            except Exception:
+                try:
+                    self.process.kill()
+                except Exception:
+                    pass

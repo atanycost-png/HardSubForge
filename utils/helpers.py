@@ -91,7 +91,7 @@ def get_font_path() -> Optional[str]:
 
 
 def check_nvidia_gpu() -> bool:
-    """Verifica se há uma GPU NVIDIA disponível."""
+    """Verifica se ha uma GPU NVIDIA disponivel."""
     try:
         creationflags = subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
         result = subprocess.run(
@@ -101,7 +101,7 @@ def check_nvidia_gpu() -> bool:
             creationflags=creationflags
         )
         return result.returncode == 0
-    except:
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         return False
 
 
