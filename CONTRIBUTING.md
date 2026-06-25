@@ -58,8 +58,9 @@ python main.py
 
 ## Funcionalidades Disponíveis
 
-### Atual (v3.0.1)
+### Atual (v3.1.0)
 - Arquitetura modular
+- Processamento em lote com fila configurável
 - Presets otimizados para sites de streaming (Máxima Qualidade, Streaming Otimizado, Equilibrado, Econômico)
 - Legendas hardcoded (.srt, .ass, .ssa)
 - Watermark customizável

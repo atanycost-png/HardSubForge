@@ -3,13 +3,15 @@
 from enum import Enum, auto
 from pathlib import Path
 from typing import Optional, List
+from dataclasses import dataclass, field
 
 from PySide6.QtWidgets import (QLabel, QPushButton, QMessageBox, QDialog,
                                 QVBoxLayout, QHBoxLayout, QFormLayout,
                                 QLineEdit, QComboBox, QDialogButtonBox,
-                                QFileDialog, QWidget)
+                                QFileDialog, QWidget, QListWidget, QListWidgetItem,
+                                QSizePolicy, QScrollArea)
 from PySide6.QtCore import Qt, Signal, Slot
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QFont
 
 from ui.styles import Color, Spacing, Radius
 
@@ -287,3 +289,181 @@ class AddPresetDialog(QDialog):
 
     def get_preset_data(self):
         return self.preset_data
+
+
+@dataclass
+class BatchItem:
+    """Item da fila de processamento em lote."""
+    path: str
+    status: str = "pending"
+    output_path: str = ""
+    output_name: str = ""
+    error_msg: str = ""
+    subtitle_path: str = ""
+    subtitle_stream_index: Optional[int] = None
+    subtitle_burn: bool = False
+    audio_track_index: Optional[int] = None
+    detected_external: str = ""
+
+    @property
+    def filename(self) -> str:
+        return Path(self.path).name
+
+
+class BatchItemRow(QWidget):
+    """Linha individual da fila de processamento."""
+
+    clicked = Signal()
+    remove_clicked = Signal()
+
+    def __init__(self, item: BatchItem, index: int, parent=None):
+        super().__init__(parent)
+        self.item = item
+        self._index = index
+        self._pill = None
+        self._setup()
+
+    def _setup(self) -> None:
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(Spacing.SM, Spacing.XS, Spacing.SM, Spacing.XS)
+        layout.setSpacing(Spacing.SM)
+
+        self._pill = StatusPill("")
+        layout.addWidget(self._pill)
+
+        name = QLabel(self.item.filename)
+        name.setStyleSheet(f"""
+            font-weight: bold;
+            color: {Color.TEXT_PRIMARY};
+            background-color: transparent;
+        """)
+        layout.addWidget(name, stretch=1)
+
+        summary = self._build_summary()
+        summary_label = QLabel(summary)
+        summary_label.setStyleSheet(f"""
+            font-size: 11px;
+            color: {Color.TEXT_SECONDARY};
+            background-color: transparent;
+        """)
+        layout.addWidget(summary_label)
+
+        btn = ModernButton("\u2715", variant=ButtonVariant.MINIMAL,
+                           color=Color.TEXT_MUTED, hover_color=Color.DANGER)
+        btn.setFixedSize(24, 24)
+        btn.setToolTip("Remover da fila")
+        btn.clicked.connect(lambda: self.remove_clicked.emit())
+        layout.addWidget(btn)
+
+        self._update_status()
+
+    def _build_summary(self) -> str:
+        parts = []
+        if self.item.subtitle_path:
+            parts.append(f"Leg: ext")
+        elif self.item.subtitle_stream_index is not None:
+            parts.append(f"Leg: emb")
+        else:
+            parts.append("Leg: --")
+        if self.item.audio_track_index is not None:
+            parts.append(f"Aud: {self.item.audio_track_index}")
+        else:
+            parts.append("Aud: pad")
+        return "  ".join(parts)
+
+    def _update_status(self) -> None:
+        status_config = {
+            "pending": ("Aguardando", Color.TEXT_MUTED, Color.BG_MEDIUM),
+            "converting": ("Convertendo", Color.INFO, Color.INFO_BG),
+            "done": ("Concluido", Color.SUCCESS, Color.SUCCESS_BG),
+            "error": ("Erro", Color.DANGER, Color.DANGER_BG),
+        }
+        text, color, bg = status_config.get(self.item.status, ("--", Color.TEXT_MUTED, Color.BG_MEDIUM))
+        self._pill.set_status(text, color, bg)
+
+    def mousePressEvent(self, event) -> None:
+        self.clicked.emit()
+        super().mousePressEvent(event)
+
+
+class BatchQueueCard(SectionCard):
+    """Card com a fila de processamento em lote."""
+
+    item_selected = Signal(int)
+    item_remove_requested = Signal(int)
+    add_to_queue_requested = Signal()
+    clear_queue_requested = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__("Fila de Processamento", parent)
+        self._items: List[BatchItem] = []
+        self._rows: List[BatchItemRow] = []
+        self._list = None
+        self._setup_ui()
+
+    def _setup_ui(self) -> None:
+        self._list = QListWidget()
+        self._list.setStyleSheet(f"""
+            QListWidget {{
+                background-color: {Color.BG_DARK};
+                border: 1px solid {Color.BORDER};
+                border-radius: {Radius.MD}px;
+                min-height: 60px;
+            }}
+            QListWidget::item {{
+                padding: 0px;
+                border-bottom: 1px solid {Color.BORDER};
+            }}
+            QListWidget::item:selected {{
+                background-color: {Color.BG_LIGHT};
+            }}
+        """)
+        self._list.itemClicked.connect(self._on_item_clicked)
+        self._layout.addWidget(self._list)
+
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(Spacing.SM)
+
+        btn_add = ModernButton("+ Adicionar a Fila", variant=ButtonVariant.SUCCESS)
+        btn_add.clicked.connect(lambda: self.add_to_queue_requested.emit())
+        btn_row.addWidget(btn_add)
+
+        btn_clear = ModernButton("Limpar Fila", variant=ButtonVariant.MINIMAL,
+                                 color=Color.TEXT_SECONDARY, hover_color=Color.DANGER)
+        btn_clear.clicked.connect(lambda: self.clear_queue_requested.emit())
+        btn_row.addWidget(btn_clear)
+
+        btn_row.addStretch()
+        self._layout.addLayout(btn_row)
+
+    def set_items(self, items: List[BatchItem]) -> None:
+        self._items = items
+        self._rows.clear()
+        self._list.clear()
+
+        for i, item in enumerate(items):
+            list_item = QListWidgetItem()
+            row = BatchItemRow(item, i)
+            row.clicked.connect(lambda idx=i: self._list.setCurrentRow(idx))
+            row.remove_clicked.connect(lambda idx=i: self.item_remove_requested.emit(idx))
+            self._rows.append(row)
+
+            list_item.setSizeHint(row.sizeHint())
+            self._list.addItem(list_item)
+            self._list.setItemWidget(list_item, row)
+
+    def update_item_status(self, index: int, status: str) -> None:
+        if 0 <= index < len(self._items):
+            self._items[index].status = status
+            if index < len(self._rows):
+                self._rows[index].item.status = status
+                self._rows[index]._update_status()
+
+    def select_row(self, index: int) -> None:
+        if 0 <= index < self._list.count():
+            self._list.setCurrentRow(index)
+
+    def _on_item_clicked(self, list_item: QListWidgetItem) -> None:
+        row = self._list.row(list_item)
+        if 0 <= row < len(self._items):
+            self.item_selected.emit(row)

@@ -78,8 +78,16 @@ The `.spec` file is **gitignored** (`*.spec`) but `build.bat` expects `HardSubFo
 ### PyInstaller frozen path
 - `get_ffmpeg_binary()` checks `sys._MEIPASS` for bundled binaries first. `_MEIPASS` is only set when running as a PyInstaller executable — in dev mode, it falls back to `Path(__file__).parent.parent`.
 
-### No batch processing
-- Batch conversion was **removed** in v3.0.0 (see CHANGELOG). It is planned for v3.1. Do not add it back using old code paths.
+### Batch processing (v3.1.0)
+- Multi-file queue via `batch_queue: List[BatchItem]` in `MainWindow`
+- Each `BatchItem` stores per-file settings: subtitle path, subtitle stream index, burn flag, audio track index
+- Queue UI via `BatchQueueCard(SectionCard)` — shows items with `StatusPill` (Aguardando/Convertendo/Concluido/Erro)
+- User clicks a queue item to load its config into the cards for editing; changes sync back via `_sync_batch_item_from_ui()`
+- Processing is sequential: `_process_next_batch()` finds the next pending item, probes synchronously (`get_streams()`), builds options, starts `ConversionWorker`
+- Cancel dialog: "Cancelar este video" (continues to next) or "Cancelar lote inteiro" (clears remaining)
+- Non-text subtitles (dvdsub, hdmv_pgs) are filtered from the combo; `is_text_subtitle()` in `utils/helpers.py` controls this
+- Probe token (`_probe_generation`) prevents stale probe results when user clicks rapidly through queue items
+- Backward compatible: single file without queue = old single-file mode
 
 ## Style notes
 

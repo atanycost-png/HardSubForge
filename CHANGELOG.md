@@ -8,6 +8,32 @@ e utiliza [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [3.1.0] - 2026-06-24
+
+### Adicionado
+- **Processamento em Lote (Batch)**: Fila de processamento com configuracao individual por arquivo
+- **BatchQueueCard**: Card com lista de arquivos e StatusPill por item (Aguardando/Convertendo/Concluido/Erro)
+- **Adicionar durante processamento**: Novos arquivos podem ser adicionados a fila enquanto o lote esta rodando
+- **Cancelamento seletivo**: Dialogo permite cancelar video atual ou lote inteiro
+- **Resumo ao final**: Notificacao com contagem de sucessos e erros
+- **Probe token**: Previne race condition ao trocar rapido entre itens da fila
+- **Filtro de codecs graficos**: Legendas dvdsub/hdmv_pgs sao filtradas do combo (nao suportadas pelo filtro `subtitles` do FFmpeg)
+
+### Alterado
+- `_on_files_dropped`: multi-select suporta adicao direta a fila
+- `_select_video_dialog`: dialogo multi-select com `getOpenFileNames`
+- `_on_audio_probed`: filtra legendas graficas e restaura config do BatchItem selecionado
+- `_start_conversion`: detecta modo batch vs single-file automaticamente
+- `_cancel_conversion`: dialogo de cancelamento com opcoes de lote
+- Btn CONVERTER: label dinamico ("INICIAR LOTE (N)" vs "INICIAR CONVERSAO")
+
+### Notas
+- Configuracoes globais (preset, watermark, bitrate) sao compartilhadas entre todos os itens do lote
+- Configuracoes por arquivo (legenda, audio) sao individuais para cada BatchItem
+- Retrocompativel: arrastar 1 arquivo sem fila mantem o comportamento single-file original
+
+---
+
 ## [3.0.1] - 2026-06-24
 
 ### Adicionado

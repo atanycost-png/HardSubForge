@@ -17,6 +17,10 @@ LANGUAGE_NAMES = {
     "und": "Desconhecido"
 }
 
+TEXT_SUBTITLE_CODECS = frozenset({
+    'srt', 'subrip', 'ass', 'ssa', 'mov_text', 'webvtt', 'text', 'stl', 'vtt'
+})
+
 
 @functools.lru_cache(maxsize=128)
 def get_language_name(code: str) -> str:
@@ -127,3 +131,8 @@ def sanitize_filename(filename: str) -> str:
     """Remove caracteres inválidos de nomes de arquivos."""
     pattern = re.compile(r'[<>:"/\\|?*]')
     return pattern.sub('_', filename)
+
+
+def is_text_subtitle(codec: str) -> bool:
+    """Verifica se o codec de legenda e baseado em texto (queimavel via filtro subtitles)."""
+    return codec.lower() in TEXT_SUBTITLE_CODECS

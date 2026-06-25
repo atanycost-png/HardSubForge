@@ -2,7 +2,7 @@
 
 Este documento descreve o plano de desenvolvimento e funcionalidades planejadas para o HardSubForge.
 
-## Versão Atual: 3.0.1
+## Versão Atual: 3.1.0
 
 Lançada em 2026-06-24
 
@@ -26,6 +26,14 @@ Lançada em 2026-06-24
 - Detecção automatica de legendas (externas + embutidas via ffprobe)
 - Queima de legenda embutida (burn-in) via indice de stream
 - Seleção manual de legendas
+
+### ✅ Processamento em Lote (v3.1.0)
+- Fila de processamento com múltiplos arquivos
+- Configuração individual por arquivo (legenda, áudio)
+- Adicionar/remover arquivos durante o processamento
+- Status visual por item (Aguardando, Convertendo, Concluido, Erro)
+- Cancelamento seletivo (video atual ou lote inteiro)
+- Resumo ao final (X ok, Y erros)
 
 ### ✅ Watermark (v3.0.0)
 - Texto customizável
@@ -59,7 +67,7 @@ Lançada em 2026-06-24
 
 #### Funcionalidades Prioritárias
 - [x] Suporte a legendas embutidas no vídeo
-- [ ] Processamento em lote (batch)
+- [x] Processamento em lote (batch)
 - [ ] Visualização do vídeo pré-conversão
 - [ ] Preview de legenda e watermark
 

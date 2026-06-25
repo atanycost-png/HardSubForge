@@ -29,7 +29,8 @@ class ConfigManager:
             "preserve_metadata": True,
             "custom_presets": [],
             "auto_detect_subtitle": True,
-            "audio_track": "all"
+            "audio_track": "all",
+            "batch_on_error": "continue"
         }
     
     def load(self):

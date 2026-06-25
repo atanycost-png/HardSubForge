@@ -1,6 +1,6 @@
-# HardSubForge v3.0.1
+# HardSubForge v3.1.0
 
-Aplicativo de conversão de vídeo otimizado para sites de streaming (Mixdrop, Byse.sx).
+Aplicativo de conversao de video com processamento em lote, legendas hardcoded e suporte a NVIDIA NVENC.
 
 ## Instalação
 
@@ -22,8 +22,9 @@ Crie seus próprios presets clicando no botão "+" na seção de qualidade.
 
 ## Funcionalidades
 
-- **Presets Otimizados**: Presets específicos para Mixdrop e Byse.sx
-- **Legendas Hardcoded**: Embarque legendas (.srt, .ass, .ssa) no vídeo
+- **Presets Otimizados**: Presets para diferentes necessidades (Maxima Qualidade, Streaming, Equilibrado, Economico)
+- **Processamento em Lote**: Fila de multiplos videos com configuracao individual
+- **Legendas Hardcoded**: Legendas externas (.srt, .ass, .ssa) e embutidas (MKV/MP4)
 - **Watermark**: Adicione texto com posição e tamanho customizáveis
 - **Resolução 1080p**: Vídeos convertidos em Full HD
 - **Saída Customizável**: Escolha o caminho e nome do arquivo de saída
